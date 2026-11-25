@@ -1,5 +1,6 @@
 import "./globals.css";
 import { Inter, Fraunces, JetBrains_Mono } from "next/font/google";
+import AppToaster from "@/components/AppToaster";
 import { AuthProvider } from "@/context/AuthContext";
 
 const sans = Inter({ subsets: ["latin"], variable: "--font-sans", display: "swap" });
@@ -20,6 +21,7 @@ export default function RootLayout({ children }) {
     <html lang="en" className={`${sans.variable} ${display.variable} ${mono.variable}`}>
       <body className="bg-paper text-ink-900 font-sans antialiased selection:bg-signal selection:text-ink-950">
         <AuthProvider>{children}</AuthProvider>
+        <AppToaster />
       </body>
     </html>
   );

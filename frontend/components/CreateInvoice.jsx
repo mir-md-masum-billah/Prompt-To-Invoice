@@ -5,6 +5,7 @@ import { useRouter, useParams } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import StatusBadge from "@/components/StatusBadge";
 import { getNavState, setNavState } from "@/lib/navState";
+import { notify } from "@/lib/notify";
 import { Eye, Save, Plus, Trash2, Upload, Building2, UserRound, ListChecks, ImageIcon, Stamp, PenLine } from "lucide-react";
 import { PageHeader, Card, btnPrimary, btnSecondary, inputCls, labelCls } from "@/components/ui";
 
@@ -284,7 +285,7 @@ export default function CreateInvoice() {
   function handleImageUpload(file, kind = "logo") {
     if (!file) return;
     if (!/^image\/(png|jpeg|webp)$/.test(file.type) || file.size > 5 * 1024 * 1024) {
-      setInvoice((inv) => (inv ? { ...inv, _uploadError: "Use a PNG, JPG or WEBP image under 5 MB." } : inv));
+      notify.error("Unsupported image", "Use a PNG, JPG or WEBP image under 5 MB.");
       return;
     }
     // Downscale in the browser so the stored data URL stays small (server caps inline images).
@@ -300,7 +301,8 @@ export default function CreateInvoice() {
       URL.revokeObjectURL(url);
       let dataUrl = c.toDataURL(file.type === "image/png" ? "image/png" : "image/webp", 0.85);
       if (dataUrl.length > 600000) dataUrl = c.toDataURL("image/webp", 0.7);
-      setInvoice((inv) => (inv ? { ...inv, [`${kind}DataUrl`]: dataUrl, _uploadError: dataUrl.length > 650000 ? "Image is too detailed - try a smaller one." : "" } : inv));
+      if (dataUrl.length > 650000) { notify.error("Image is too detailed", "Try a smaller one."); return; }
+      setInvoice((inv) => (inv ? { ...inv, [`${kind}DataUrl`]: dataUrl } : inv));
     };
     img.onerror = () => URL.revokeObjectURL(url);
     img.src = url;
@@ -674,7 +676,6 @@ export default function CreateInvoice() {
         notes: invoice.notes || "",
         localId: invoice.id,
       };
-      delete prepared._uploadError;
 
       // include invoiceNumber only if provided (we prefill for new invoices)
       if (
@@ -752,7 +753,7 @@ export default function CreateInvoice() {
       }
       saveStoredInvoices(all);
 
-      alert(`Invoice ${isEditing ? "updated" : "created"} successfully.`);
+      notify.success(`Invoice ${isEditing ? "updated" : "created"} successfully.`);
       router.push("/app/invoices");
     } catch (err) {
       console.error("Failed to save invoice to server:", err);
@@ -763,7 +764,7 @@ export default function CreateInvoice() {
           .toLowerCase()
           .includes("invoice number")
       ) {
-        alert(err.message || "Invoice number already exists. Choose another.");
+        notify.error("Invoice number already in use", err.message || "Choose another invoice number.");
         setLoading(false);
         return;
       }
@@ -792,11 +793,11 @@ export default function CreateInvoice() {
           all.unshift(preparedLocal);
         }
         saveStoredInvoices(all);
-        alert("Saved locally as fallback (server error).");
+        notify.warning("Saved locally as a fallback", "The server could not be reached.");
         router.push("/app/invoices");
       } catch (localErr) {
         console.error("Local fallback failed:", localErr);
-        alert(err?.message || "Save failed. See console.");
+        notify.error("Save failed", err?.message || "Please try again.");
       }
     } finally {
       setLoading(false);
@@ -859,7 +860,6 @@ export default function CreateInvoice() {
           <button type="button" onClick={handleSave} disabled={loading} className={btnPrimary}><Save size={16} /> {loading ? "Saving..." : isEditing ? "Update invoice" : "Save invoice"}</button>
         </>}
       />
-      {invoice?._uploadError && <div role="alert" className="rounded-2xl border border-rose-200 bg-rose-50 px-5 py-3 text-sm text-rose-700">{invoice._uploadError}</div>}
 
       <Card className="p-7">
         <div className="grid gap-5 md:grid-cols-3">

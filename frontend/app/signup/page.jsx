@@ -6,13 +6,13 @@ import { useRouter } from "next/navigation";
 import { Check } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import AuthShell from "@/components/AuthShell";
-import { Field, PasswordInput, FormError, inputCls, submitCls } from "@/components/AuthFields";
+import { notify } from "@/lib/notify";
+import { Field, PasswordInput, inputCls, submitCls } from "@/components/AuthFields";
 
 export default function SignupPage() {
   const router = useRouter();
   const { register } = useAuth();
   const [form, setForm] = useState({ name: "", email: "", password: "", confirm: "" });
-  const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
   const onChange = (e) => setForm((f) => ({ ...f, [e.target.name]: e.target.value }));
@@ -26,19 +26,17 @@ export default function SignupPage() {
   const onSubmit = async (e) => {
     e.preventDefault();
     if (busy) return;
-    setError("");
-    if (!strong) return setError("Please choose a stronger password.");
-    if (form.password !== form.confirm) return setError("Passwords do not match.");
+    if (!strong) return notify.warning("Choose a stronger password", "Use 10+ characters with upper and lower case letters and a number.");
+    if (form.password !== form.confirm) return notify.warning("Passwords do not match");
     setBusy(true);
     const r = await register({ name: form.name.trim(), email: form.email.trim(), password: form.password });
     setBusy(false);
-    if (r.ok) router.replace("/app/dashboard"); else setError(r.error || "Registration failed");
+    if (r.ok) router.replace("/app/dashboard"); else notify.error("Registration failed", r.error || "Please try again.");
   };
 
   return (
     <AuthShell title="Create your account" subtitle="Start generating invoices in seconds - free."
       footer={<>Already have an account? <Link href="/login" className="font-semibold text-brand-700 hover:underline">Sign in</Link></>}>
-      <FormError message={error} />
       <form onSubmit={onSubmit} className="space-y-5">
         <Field label="Full name" id="name">
           <input id="name" name="name" type="text" required maxLength={80} autoComplete="name" placeholder="Jane Cooper" value={form.name} onChange={onChange} className={inputCls} />

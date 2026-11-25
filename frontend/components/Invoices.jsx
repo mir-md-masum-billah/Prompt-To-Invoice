@@ -4,10 +4,11 @@ import React, { useMemo, useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import StatusBadge from "@/components/StatusBadge";
 import AiInvoiceModal from "@/components/AiInvoiceModal";
-import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight, Eye, FileText, Plus, RotateCcw, Search, Trash2, Sparkles, CheckCircle2, AlertCircle } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight, Eye, FileText, Plus, RotateCcw, Search, Trash2, Sparkles } from "lucide-react";
 import { PageHeader, Card, Spinner, EmptyState, btnPrimary, btnSecondary, inputCls, labelCls } from "@/components/ui";
 import { useAuth } from "@/context/AuthContext";
 import { setNavState } from "@/lib/navState";
+import { notify, confirmDialog } from "@/lib/notify";
 
 import { API_BASE } from "@/lib/config";
 
@@ -251,7 +252,6 @@ export default function InvoicesPage() {
     // AI modal
     const [aiOpen, setAiOpen] = useState(false);
     const [aiLoading, setAiLoading] = useState(false);
-    const [notice, setNotice] = useState(null);
 
     // fetch invoices from backend (auth-aware)
     const fetchInvoices = useCallback(async () => {
@@ -389,11 +389,17 @@ export default function InvoicesPage() {
     // delete invoice (backend)
     async function handleDeleteInvoice(inv) {
         if (!inv?.id) return;
-        if (!confirm(`Delete invoice ${inv.id}? This cannot be undone.`)) return;
+        const ok = await confirmDialog({
+            title: "Delete this invoice?",
+            text: `Invoice ${inv.id} will be permanently removed. This cannot be undone.`,
+            confirmText: "Delete invoice",
+            danger: true,
+        });
+        if (!ok) return;
         try {
             const token = await obtainToken();
             if (!token) {
-                setNotice({ type: "error", text: "Please sign in to delete invoices." });
+                notify.error("Sign in required", "Please sign in to delete invoices.");
                 router.push("/login");
                 return;
             }
@@ -405,7 +411,7 @@ export default function InvoicesPage() {
                 }
             );
             if (res.status === 401) {
-                setNotice({ type: "error", text: "Session expired. Please sign in again." });
+                notify.error("Session expired", "Please sign in again.");
                 router.push("/login");
                 return;
             }
@@ -414,10 +420,10 @@ export default function InvoicesPage() {
                 throw new Error(json?.message || `Delete failed (${res.status})`);
             }
             await fetchInvoices();
-            setNotice({ type: "ok", text: `Invoice ${inv.id} deleted.` });
+            notify.success("Invoice deleted", `${inv.id} was removed.`);
         } catch (err) {
             console.error("deleteInvoice error:", err);
-            setNotice({ type: "error", text: "Failed to delete the invoice." });
+            notify.error("Failed to delete the invoice", "Please try again.");
         }
     }
 
@@ -605,12 +611,6 @@ export default function InvoicesPage() {
 
             <AiInvoiceModal open={aiOpen} onClose={() => setAiOpen(false)} onGenerate={handleGenerateFromAI} loading={aiLoading} />
 
-            {notice && (
-                <div role="status" className={`flex items-center justify-between gap-3 rounded-2xl border px-5 py-3.5 text-sm ${notice.type === "ok" ? "border-brand-200 bg-brand-50 text-brand-800" : "border-rose-200 bg-rose-50 text-rose-700"}`}>
-                    <span className="flex items-center gap-2">{notice.type === "ok" ? <CheckCircle2 size={17} /> : <AlertCircle size={17} />} {notice.text}</span>
-                    <button type="button" onClick={() => setNotice(null)} className="text-xs font-semibold underline">Dismiss</button>
-                </div>
-            )}
             {error && (
                 <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-rose-200 bg-rose-50 px-5 py-4 text-sm text-rose-700">
                     <span>{error}</span>

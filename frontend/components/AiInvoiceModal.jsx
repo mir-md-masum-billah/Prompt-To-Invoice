@@ -1,8 +1,9 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
-import { Sparkles, X, Loader2, Info, AlertCircle } from "lucide-react";
+import { Sparkles, X, Loader2 } from "lucide-react";
 import { btnPrimary, btnSecondary } from "@/components/ui";
+import { notify } from "@/lib/notify";
 
 const EXAMPLES = [
   "10 hours of consulting for Acme Corp at $120/hour, due in 30 days",
@@ -13,14 +14,10 @@ const EXAMPLES = [
 export default function AiInvoiceModal({ open, onClose, onGenerate, initialText = "" }) {
   const [text, setText] = useState(initialText || "");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
   const areaRef = useRef(null);
 
   useEffect(() => {
     setText(initialText || "");
-    setError("");
-    setNotice("");
     setLoading(false);
   }, [open, initialText]);
 
@@ -36,16 +33,14 @@ export default function AiInvoiceModal({ open, onClose, onGenerate, initialText 
   if (!open) return null;
 
   async function handleGenerateClick() {
-    setError("");
-    setNotice("");
     const row = (text || "").trim();
-    if (!row) return setError("Describe the work you want to invoice first.");
+    if (!row) return notify.warning("Add a description", "Describe the work you want to invoice first.");
     try {
       setLoading(true);
       const result = await (onGenerate && onGenerate(row));
-      if (result && result.notice) setNotice(String(result.notice));
+      if (result && result.notice) notify.info("Need more detail", String(result.notice));
     } catch (err) {
-      setError((err && err.message) || "Failed to generate. Please try again.");
+      notify.error("Could not generate the invoice", (err && err.message) || "Please try again.");
     } finally {
       setLoading(false);
     }
@@ -80,8 +75,6 @@ export default function AiInvoiceModal({ open, onClose, onGenerate, initialText 
           ))}
         </div>
 
-        {notice && !error && <div role="status" className="mt-5 flex items-start gap-2.5 rounded-2xl border border-brand-200 bg-brand-50 px-4 py-3 text-sm text-brand-800"><Info size={17} className="mt-0.5 shrink-0" />{notice}</div>}
-        {error && <div role="alert" className="mt-5 flex items-start gap-2.5 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700"><AlertCircle size={17} className="mt-0.5 shrink-0" />{String(error)}</div>}
 
         <div className="mt-6 flex justify-end gap-3">
           <button type="button" onClick={() => onClose?.()} disabled={loading} className={btnSecondary}>Cancel</button>

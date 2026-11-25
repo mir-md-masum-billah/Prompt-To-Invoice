@@ -19,7 +19,7 @@ Generate a secret: `node -e "console.log(require('crypto').randomBytes(48).toStr
 - `/api/ai/generate` now requires auth, is rate-limited, caps input, isolates user text, and whitelists/cleans model output; raw model errors are never returned.
 - Uploads: PNG/JPG/WEBP only, 2 MB, random filenames, magic-byte verification, `nosniff`.
 - Helmet, strict CORS allow-list (`CLIENT_ORIGINS`), 1 MB body limit, global rate limit, generic error responses.
-- Frontend: strict CSP + security headers, open-redirect-safe login, token held in `sessionStorage`, API origin via `NEXT_PUBLIC_API_URL`.
+- Frontend: strict CSP + security headers, open-redirect-safe login, token held in `sessionStorage`, API origin via `NEXT_PUBLIC_API_BASE`.
 
 ## Production checklist
-Serve both apps over HTTPS, set `NODE_ENV=production`, `PUBLIC_API_URL`, `CLIENT_ORIGINS`, `NEXT_PUBLIC_API_URL`. For the strongest posture, move the session to an httpOnly SameSite cookie (+CSRF token) and store uploads in object storage.
+Serve both apps over HTTPS, set `NODE_ENV=production`, `PUBLIC_API_URL`, `CLIENT_ORIGINS`, `NEXT_PUBLIC_API_BASE`. For the strongest posture, move the session to an httpOnly SameSite cookie (+CSRF token) and store uploads in object storage.

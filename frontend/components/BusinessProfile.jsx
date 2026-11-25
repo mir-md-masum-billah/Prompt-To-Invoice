@@ -2,10 +2,11 @@
 
 import React, { useEffect, useState, useCallback } from "react";
 import { useAuth } from "@/context/AuthContext";
-import { ImageIcon, Save, RotateCcw, Trash2, Upload, Building2, CheckCircle2, AlertCircle } from "lucide-react";
+import { ImageIcon, Save, RotateCcw, Trash2, Upload, Building2 } from "lucide-react";
 import { PageHeader, Card, inputCls, labelCls, btnPrimary, btnSecondary } from "@/components/ui";
 
 import { API_BASE } from "@/lib/config";
+import { notify } from "@/lib/notify";
 
 const DEFAULT_META = {
   businessName: "",
@@ -64,7 +65,6 @@ const BusinessProfile = () => {
 
   const [meta, setMeta] = useState(DEFAULT_META);
   const [saving, setSaving] = useState(false);
-  const [notice, setNotice] = useState(null);
 
   const [files, setFiles] = useState({
     logo: null,
@@ -181,12 +181,11 @@ const BusinessProfile = () => {
   async function handleSave(e) {
     e?.preventDefault();
     setSaving(true);
-    setNotice(null);
 
     try {
       const token = await getAuthToken();
       if (!token) {
-        setNotice({ type: "error", text: "Please sign in to save your profile." });
+        notify.error("Sign in required", "Please sign in to save your profile.");
         return;
       }
 
@@ -252,10 +251,10 @@ const BusinessProfile = () => {
         });
       }
 
-      setNotice({ type: "ok", text: "Business profile saved." });
+      notify.success("Business profile saved");
     } catch (err) {
       console.error("handleSave error:", err);
-      setNotice({ type: "error", text: "Could not save the profile. Check your inputs and try again." });
+      notify.error("Could not save the profile", "Check your inputs and try again.");
     } finally {
       setSaving(false);
     }
@@ -286,11 +285,6 @@ const BusinessProfile = () => {
       <PageHeader eyebrow="Settings" title="Business profile" subtitle="Your company details, branding and invoice defaults. Saved once, reused on every invoice." />
 
       {!isSignedIn && <div role="alert" className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-800">You are not signed in. Sign in to load and save your profile.</div>}
-      {notice && (
-        <div role="status" className={`flex items-center gap-2.5 rounded-2xl border px-5 py-4 text-sm ${notice.type === "ok" ? "border-brand-200 bg-brand-50 text-brand-800" : "border-rose-200 bg-rose-50 text-rose-700"}`}>
-          {notice.type === "ok" ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />} {notice.text}
-        </div>
-      )}
 
       <form onSubmit={handleSave} className="grid gap-6 xl:grid-cols-[1.3fr_1fr]">
         <div className="space-y-6">
@@ -337,7 +331,7 @@ const BusinessProfile = () => {
                         <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-ink-200 bg-white px-3 py-1.5 text-xs font-semibold hover:border-ink-900 focus-within:ring-4 focus-within:ring-brand-100">
                           <Upload size={13} /> {src ? "Replace" : "Upload"}
                           <input type="file" accept="image/png,image/jpeg,image/webp" className="sr-only"
-                            onChange={(e) => { const f = e.target.files?.[0]; if (f && f.size > 2 * 1024 * 1024) { setNotice({ type: "error", text: `${label} is larger than 2 MB.` }); e.target.value = ""; return; } handleLocalFilePick(kind, f); }} />
+                            onChange={(e) => { const f = e.target.files?.[0]; if (f && f.size > 2 * 1024 * 1024) { notify.error("Image too large", `${label} must be 2 MB or smaller.`); e.target.value = ""; return; } handleLocalFilePick(kind, f); }} />
                         </label>
                         {src && <button type="button" onClick={() => removeLocalFile(kind)} className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50"><Trash2 size={13} /> Remove</button>}
                       </div>

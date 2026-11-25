@@ -1,7 +1,7 @@
 const path = require("path");
 
 const isProd = process.env.NODE_ENV === "production";
-const api = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000").replace(/\/$/, "");
+const api = (process.env.NEXT_PUBLIC_API_BASE || "").replace(/\/$/, "");
 
 // Strict CSP. Next.js needs inline styles; dev mode needs eval for HMR.
 const csp = [

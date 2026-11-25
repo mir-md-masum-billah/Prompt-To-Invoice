@@ -6,7 +6,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { safeRedirect } from "@/lib/config";
 import AuthShell from "@/components/AuthShell";
-import { Field, PasswordInput, FormError, inputCls, submitCls } from "@/components/AuthFields";
+import { notify } from "@/lib/notify";
+import { Field, PasswordInput, inputCls, submitCls } from "@/components/AuthFields";
 
 function LoginForm() {
   const router = useRouter();
@@ -14,23 +15,21 @@ function LoginForm() {
   const { login } = useAuth();
   const redirectTo = safeRedirect(params.get("from"));
   const [form, setForm] = useState({ email: "", password: "" });
-  const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
   const onChange = (e) => setForm((f) => ({ ...f, [e.target.name]: e.target.value }));
   const onSubmit = async (e) => {
     e.preventDefault();
     if (busy) return;
-    setError(""); setBusy(true);
+    setBusy(true);
     const r = await login({ email: form.email.trim(), password: form.password });
     setBusy(false);
-    if (r.ok) router.replace(redirectTo); else setError(r.error || "Sign in failed");
+    if (r.ok) router.replace(redirectTo); else notify.error("Sign in failed", r.error || "Please check your credentials.");
   };
 
   return (
     <AuthShell title="Welcome back" subtitle="Sign in to manage your invoices."
       footer={<>New here? <Link href="/signup" className="font-semibold text-brand-700 hover:underline">Create an account</Link></>}>
-      <FormError message={error} />
       <form onSubmit={onSubmit} className="space-y-5" noValidate={false}>
         <Field label="Email" id="email">
           <input id="email" name="email" type="email" required maxLength={254} autoComplete="email" placeholder="you@company.com" value={form.email} onChange={onChange} className={inputCls} />

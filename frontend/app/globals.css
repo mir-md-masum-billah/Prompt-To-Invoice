@@ -421,3 +421,10 @@
   aside, header.glass { display: none !important; }
   main { padding: 0 !important; max-width: none !important; }
 }
+
+/* SweetAlert2 + Sonner: keep above app chrome and match the design system */
+.p2i-swal-container { z-index: 2000 !important; backdrop-filter: blur(4px); background: rgba(8,10,15,.55) !important; }
+.swal2-popup { font-family: var(--font-sans), system-ui, sans-serif; }
+.swal2-icon { transform: scale(.85); }
+body.swal2-shown > [data-sonner-toaster] { z-index: 2100; }
+[data-sonner-toast] { font-family: var(--font-sans), system-ui, sans-serif; }
