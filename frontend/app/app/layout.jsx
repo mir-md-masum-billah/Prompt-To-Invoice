@@ -18,7 +18,7 @@ export default function AppLayout({ children }) {
 
   if (!isLoaded) {
     return (
-      <div className="min-h-screen flex items-center justify-center text-gray-500">
+      <div className="min-h-screen flex items-center justify-center text-ink-500">
         Loading...
       </div>
     );

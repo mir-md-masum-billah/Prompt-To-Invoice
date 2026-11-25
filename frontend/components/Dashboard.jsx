@@ -2,13 +2,14 @@
 
 import React, { useCallback, useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { dashboardStyles } from '@/assets/dummyStyles';
 import { useAuth } from "@/context/AuthContext";
 import KpiCard from '@/components/KpiCard';
-import { EyeIcon, FileText, FileTextIcon } from "lucide-react";
+import { ArrowRight, Eye, FileText, Plus, Building2 } from "lucide-react";
+import { PageHeader, Card, Spinner, EmptyState, btnPrimary, btnSecondary } from "@/components/ui";
 import StatusBadge from '@/components/StatusBadge';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE;
+import { API_BASE as API_BASE_URL } from "@/lib/config";
+import { currencyFmt, capitalize, formatDate } from "@/lib/format";
 
 /* normalize client object */
 function normalizeClient(raw) {
@@ -24,33 +25,6 @@ function normalizeClient(raw) {
     };
   }
   return { name: "", email: "", address: "", phone: "" };
-}
-
-function currencyFmt(amount = 0, currency = "USD") {
-  try {
-    const n = Number(amount || 0);
-    return new Intl.NumberFormat(
-      "en-US",
-      { style: "currency", currency }
-    ).format(n);
-  } catch {
-    return `${currency} ${amount}`;
-  }
-}
-
-function capitalize(s) {
-  if (!s) return s;
-  return String(s).charAt(0).toUpperCase() + String(s).slice(1);
-}
-
-function formatDate(dateInput) {
-  if (!dateInput) return "—";
-  const d = dateInput instanceof Date ? dateInput : new Date(String(dateInput));
-  if (Number.isNaN(d.getTime())) return "—";
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  const yyyy = d.getFullYear();
-  return `${mm}/${dd}/${yyyy}`;
 }
 
 const Dashboard = () => {
@@ -190,181 +164,102 @@ const Dashboard = () => {
     router.push(`/app/invoices/${inv.id}`);
   }
 
+  const avg = kpis.totalInvoices > 0 ? (kpis.totalPaid + kpis.totalUnpaid) / kpis.totalInvoices : 0;
+  const greeting = businessProfile?.businessName ? `Overview for ${businessProfile.businessName}` : "Overview";
+
   return (
-    <div className={dashboardStyles.pageContainer}>
-      <div className={dashboardStyles.headerContainer}>
-        <h1 className={dashboardStyles.headerTitle}>Dashboard Overview</h1>
-        <p className={dashboardStyles.headerSubtitle}>
-          Track your invoicing performance and business insights
-        </p>
-      </div>
+    <div className="space-y-8">
+      <PageHeader
+        eyebrow={greeting}
+        title="Dashboard"
+        subtitle="Billing activity and cash collection at a glance."
+        actions={<button onClick={() => router.push("/app/create-invoice")} className={btnPrimary}><Plus size={16} /> New invoice</button>}
+      />
 
-      {loading ? (
-        <div className="p-6">Loading...</div>
-      ) : error ? (
-        <div className="p-6">
-          <div className="text-red-600 mb-3">Error: {error}</div>
+      {error && (
+        <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-rose-200 bg-rose-50 px-5 py-4 text-sm text-rose-700">
+          <span>{error}</span>
           <div className="flex gap-2">
-            <button onClick={fetchInvoices} className="px-3 py-1 bg-blue-600 text-white rounded">Retry</button>
-            {String(error).toLowerCase().includes("unauthorized") && (
-              <button onClick={() => router.push("/login")} className="px-3 py-1 bg-gray-700 text-white rounded">Sign in</button>
-            )}
+            <button onClick={fetchInvoices} className={btnSecondary}>Retry</button>
+            {String(error).toLowerCase().includes("unauthorized") && <button onClick={() => router.push("/login")} className={btnPrimary}>Sign in</button>}
           </div>
         </div>
-      ) : null}
+      )}
 
-      <div className={dashboardStyles.kpiGrid}>
-        <KpiCard title="Total Invoices" value={kpis.totalInvoices} hint="Active invoices" iconType="document" trend={8.5} />
-        <KpiCard title="Total Paid" value={currencyFmt(kpis.totalPaid, "USD")} hint="Received Amount" iconType="revenue" trend={12.2} />
-        <KpiCard title="Total Unpaid" value={currencyFmt(kpis.totalUnpaid, "USD")} hint="Outstanding Balance" iconType="clock" trend={-3.1} />
+      <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
+        <KpiCard title="Total invoices" value={kpis.totalInvoices} hint="All time" iconType="document" />
+        <KpiCard title="Collected" value={currencyFmt(kpis.totalPaid, "USD")} hint={`${kpis.paidCount} paid invoice${kpis.paidCount === 1 ? "" : "s"}`} iconType="revenue" />
+        <KpiCard title="Outstanding" value={currencyFmt(kpis.totalUnpaid, "USD")} hint="Awaiting payment" iconType="clock" tone="amber" />
+        <KpiCard title="Average invoice" value={currencyFmt(avg, "USD")} hint={`${kpis.paidPercentage.toFixed(0)}% paid rate`} iconType="growth" tone="ink" />
       </div>
 
-      <div className={dashboardStyles.mainGrid}>
-        <div className={dashboardStyles.sidebarColumn}>
-          <div className={dashboardStyles.quickStatsCard}>
-            <h3 className={dashboardStyles.quickStatsTitle}>Quick Stats</h3>
-            <div className='space-y-3'>
-              <div className={dashboardStyles.quickStatsRow}>
-                <span className={dashboardStyles.quickStatsLabel}>Paid Rate</span>
-                <span className={dashboardStyles.quickStatsValue}>
-                  {kpis.totalInvoices > 0 ? ((kpis.paidCount / kpis.totalInvoices) * 100).toFixed(1) : 0} %
-                </span>
-              </div>
-              <div className={dashboardStyles.quickStatsRow}>
-                <span className={dashboardStyles.quickStatsLabel}>Avg. Invoice</span>
-                <span className={dashboardStyles.quickStatsValue}>
-                  {currencyFmt(kpis.totalInvoices > 0 ? (kpis.totalPaid + kpis.totalUnpaid) / kpis.totalInvoices : 0, "USD")}
-                </span>
-              </div>
-              <div className={dashboardStyles.quickStatsRow}>
-                <span className={dashboardStyles.quickStatsLabel}>Collection Eff.</span>
-                <span className={dashboardStyles.quickStatsValue}>{kpis.paidPercentage.toFixed(1)}%</span>
-              </div>
+      <div className="grid gap-6 xl:grid-cols-[1fr_320px]">
+        <Card className="overflow-hidden">
+          <div className="flex items-center justify-between border-b border-ink-100 px-6 py-5">
+            <div>
+              <h2 className="text-lg font-semibold">Recent invoices</h2>
+              <p className="text-sm text-ink-500">Your five latest invoices</p>
             </div>
+            <button onClick={() => router.push("/app/invoices")} className="inline-flex items-center gap-1.5 text-sm font-semibold text-brand-700 hover:underline">View all <ArrowRight size={15} /></button>
           </div>
 
-          {/* quick actions */}
-          <div className={dashboardStyles.cardContainer}>
-            <div className="p-6">
-              <h3 className="font-semibold text-gray-900 mb-4">Quick Actions</h3>
-              <div className={dashboardStyles.quickActionsContainer}>
-                <button onClick={() => router.push("/app/create-invoice")} className={`${dashboardStyles.quickActionButton} ${dashboardStyles.quickActionBlue}`}>
-                  <div className={`${dashboardStyles.quickActionIconContainer} ${dashboardStyles.quickActionIconBlue}`}>
-                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M12 5v14m-7-7h14" />
-                    </svg>
-                  </div>
-                  <span className={dashboardStyles.quickActionText}>Create Invoice</span>
-                </button>
-
-                <button onClick={() => router.push("/app/invoices")} className={`${dashboardStyles.quickActionButton} ${dashboardStyles.quickActionGray}`}>
-                  <div className={`${dashboardStyles.quickActionIconContainer} ${dashboardStyles.quickActionIconGray}`}>
-                    <FileTextIcon className="w-4 h-4" />
-                  </div>
-                  <span className={dashboardStyles.quickActionText}>View All Invoices</span>
-                </button>
-
-                <button onClick={() => router.push("/app/business")} className={`${dashboardStyles.quickActionButton} ${dashboardStyles.quickActionGray}`}>
-                  <div className={`${dashboardStyles.quickActionIconContainer} ${dashboardStyles.quickActionIconGray}`}>
-                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                      <circle cx="12" cy="7" r="4" />
-                    </svg>
-                  </div>
-                  <span className={dashboardStyles.quickActionText}>Business Profile</span>
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className={dashboardStyles.contentColumn}>
-          <div className={dashboardStyles.cardContainerOverflow}>
-            <div className={dashboardStyles.tableHeader}>
-              <div className={dashboardStyles.tableHeaderContent}>
-                <div>
-                  <h3 className={dashboardStyles.tableTitle}>Recent Invoices</h3>
-                  <p className={dashboardStyles.tableSubtitle}>Latest 5 invoices from your account</p>
-                </div>
-                <button onClick={() => router.push("/app/invoices")} className={dashboardStyles.tableActionButton}>
-                  View all
-                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M5 12h14m-7-7l7 7-7 7" />
-                  </svg>
-                </button>
-              </div>
-            </div>
-
-            <div className={dashboardStyles.tableContainer}>
-              <table className={dashboardStyles.table}>
+          {loading ? (
+            <div className="grid place-items-center py-20"><Spinner /></div>
+          ) : recent.length === 0 ? (
+            <EmptyState icon={FileText} title="No invoices yet" text="Describe your first job and let AI draft the invoice." action={<button onClick={() => router.push("/app/create-invoice")} className={btnPrimary}>Create your first invoice</button>} />
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[640px] text-left text-sm">
                 <thead>
-                  <tr className={dashboardStyles.tableHead}>
-                    <th className={dashboardStyles.tableHeaderCell}>Client & ID</th>
-                    <th className={dashboardStyles.tableHeaderCell}>Amount</th>
-                    <th className={dashboardStyles.tableHeaderCell}>Status</th>
-                    <th className={dashboardStyles.tableHeaderCell}>Due Date</th>
-                    <th className={dashboardStyles.tableHeaderCell}>Actions</th>
+                  <tr className="text-xs uppercase tracking-wide text-ink-500">
+                    <th className="px-6 py-3 font-semibold">Client</th>
+                    <th className="px-6 py-3 font-semibold">Amount</th>
+                    <th className="px-6 py-3 font-semibold">Status</th>
+                    <th className="px-6 py-3 font-semibold">Due</th>
+                    <th className="px-6 py-3" />
                   </tr>
                 </thead>
-                <tbody className={dashboardStyles.tableBody}>
-                  {recent.map((inv) => {
-                    const clientName = getClientName(inv);
-                    const clientInitial = getClientInitial(inv);
-
-                    return (
-                      <tr key={inv.id} className={dashboardStyles.tableRow} onClick={() => openInvoice(inv)}>
-                        <td className={dashboardStyles.tableCell}>
-                          <div className='flex items-center gap-3'>
-                            <div className={dashboardStyles.clientAvatar}>{clientInitial}</div>
-                            <div>
-                              <div className={dashboardStyles.clientInfo}>{clientName}</div>
-                              <div className={dashboardStyles.clientSubInfo}>{inv.id}</div>
-                            </div>
-                          </div>
-                        </td>
-                        <td className={dashboardStyles.tableCell}>
-                          <div className={dashboardStyles.amountCell}>{currencyFmt(inv.amount, inv.currency)}</div>
-                        </td>
-                        <td className={dashboardStyles.tableCell}>
-                          <StatusBadge status={inv.status} size="default" showIcon={true} />
-                        </td>
-                        <td className={dashboardStyles.tableCell}>
-                          <div className={dashboardStyles.dateCell}>{inv.dueDate ? formatDate(inv.dueDate) : "-"}</div>
-                        </td>
-                        <td className={dashboardStyles.tableCell}>
-                          <div className='text-right'>
-                            <button onClick={(e) => { e.stopPropagation(); openInvoice(inv); }} className={dashboardStyles.actionButton}>
-                              <EyeIcon className='w-4 h-4 group-hover/btn:scale-110 transition-transform' />
-                               View
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                  {/* if no invoices */}
-                  {recent.length === 0 && !loading &&(
-                    <tr>
-                      <td colSpan={5} className={dashboardStyles.emptyState}>
-                          <div className={dashboardStyles.emptyStateText}>
-                         <FileTextIcon
-                         className={dashboardStyles.emptyStateIcon}
-                         />
-                         <div className={dashboardStyles.emptyStateMessage}>
-                          No invoice yet
-                         </div>
-                         <button onClick={()=> router.push("/app/create-invoice")}
-                          className={dashboardStyles.emptyStateAction}>
-                            Create your first Invoice
-                         </button>
-                          </div>
+                <tbody className="divide-y divide-ink-100">
+                  {recent.map((inv) => (
+                    <tr key={inv.id} onClick={() => openInvoice(inv)} className="cursor-pointer transition hover:bg-ink-50/70">
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-brand-50 font-semibold text-brand-700 ring-1 ring-brand-100">{getClientInitial(inv)}</span>
+                          <div className="min-w-0"><p className="truncate font-medium">{getClientName(inv)}</p><p className="num text-xs text-ink-500">{inv.id}</p></div>
+                        </div>
+                      </td>
+                      <td className="num px-6 py-4 font-medium">{currencyFmt(inv.amount, inv.currency)}</td>
+                      <td className="px-6 py-4"><StatusBadge status={inv.status} /></td>
+                      <td className="px-6 py-4 text-ink-600">{formatDate(inv.dueDate)}</td>
+                      <td className="px-6 py-4 text-right">
+                        <button onClick={(e) => { e.stopPropagation(); openInvoice(inv); }} className="inline-flex items-center gap-1.5 rounded-full border border-ink-200 px-3 py-1.5 text-xs font-semibold hover:border-ink-900"><Eye size={14} /> View</button>
                       </td>
                     </tr>
-                  )}
+                  ))}
                 </tbody>
               </table>
             </div>
-          </div>
+          )}
+        </Card>
+
+        <div className="space-y-6">
+          <Card className="bg-ink-950 p-6 text-paper">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-signal">Collection</p>
+            <p className="num mt-3 text-4xl font-semibold">{kpis.paidPercentage.toFixed(0)}%</p>
+            <p className="mt-1 text-sm text-ink-300">of invoices are paid</p>
+            <div className="mt-5 h-2 overflow-hidden rounded-full bg-white/10" role="progressbar" aria-valuenow={Math.round(kpis.paidPercentage)} aria-valuemin={0} aria-valuemax={100}>
+              <div className="h-full rounded-full bg-signal transition-all duration-700" style={{ width: `${kpis.paidPercentage}%` }} />
+            </div>
+          </Card>
+          <Card className="p-3">
+            <p className="px-3 pb-2 pt-3 text-xs font-semibold uppercase tracking-wide text-ink-500">Quick actions</p>
+            {[["Create invoice", "/app/create-invoice", Plus], ["All invoices", "/app/invoices", FileText], ["Business profile", "/app/business", Building2]].map(([t, to, I]) => (
+              <button key={to} onClick={() => router.push(to)} className="flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-sm font-medium text-ink-800 transition hover:bg-ink-50">
+                <span className="grid h-9 w-9 place-items-center rounded-xl bg-brand-50 text-brand-700"><I size={17} /></span>{t}
+                <ArrowRight size={15} className="ml-auto text-ink-400" />
+              </button>
+            ))}
+          </Card>
         </div>
       </div>
     </div>

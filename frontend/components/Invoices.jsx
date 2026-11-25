@@ -4,12 +4,12 @@ import React, { useMemo, useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import StatusBadge from "@/components/StatusBadge";
 import AiInvoiceModal from "@/components/AiInvoiceModal";
-import GeminiIcon from "@/components/GeminiIcon";
-import { invoicesStyles } from "@/assets/dummyStyles";
+import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeft, ChevronRight, Eye, FileText, Plus, RotateCcw, Search, Trash2, Sparkles, CheckCircle2, AlertCircle } from "lucide-react";
+import { PageHeader, Card, Spinner, EmptyState, btnPrimary, btnSecondary, inputCls, labelCls } from "@/components/ui";
 import { useAuth } from "@/context/AuthContext";
 import { setNavState } from "@/lib/navState";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE;
+import { API_BASE } from "@/lib/config";
 
 /* ---------- helpers ---------- */
 /* ----------------- frontend-only: normalize image URLs ----------------- */
@@ -190,53 +190,28 @@ const ResetIcon = ({ className = "w-4 h-4" }) => (
     </svg>
 );
 
-/* Pagination component */
-function Pagination({ page, totalPages, onChange }) {
-    if (totalPages <= 1) return null;
-    const pages = [];
-    const start = Math.max(1, page - 2);
-    const end = Math.min(totalPages, start + 4);
-    for (let i = start; i <= end; i++) pages.push(i);
-    return (
-        <div className={invoicesStyles.pagination}>
-            <div className={invoicesStyles.paginationText}>
-                Page {page} of {totalPages}
-            </div>
-            <div className={invoicesStyles.paginationControls}>
-                <button
-                    type="button"
-                    onClick={() => onChange(Math.max(1, page - 1))}
-                    disabled={page === 1}
-                    className={invoicesStyles.paginationButton}
-                >
-                    Previous
-                </button>
-                <div className={invoicesStyles.paginationNumbers}>
-                    {pages.map((p) => (
-                        <button
-                            key={p}
-                            type="button"
-                            onClick={() => onChange(p)}
-                            className={`${invoicesStyles.paginationNumber} ${p === page
-                                    ? invoicesStyles.paginationNumberActive
-                                    : invoicesStyles.paginationNumberInactive
-                                }`}
-                        >
-                            {p}
-                        </button>
-                    ))}
-                </div>
-                <button
-                    type="button"
-                    onClick={() => onChange(Math.min(totalPages, page + 1))}
-                    disabled={page === totalPages}
-                    className={invoicesStyles.paginationButton}
-                >
-                    Next
-                </button>
-            </div>
-        </div>
-    );
+/* Pagination */
+function Pagination({ page, totalPages, total, perPage, onChange }) {
+  if (totalPages <= 1) return null;
+  const pages = [];
+  const start = Math.max(1, Math.min(page - 2, totalPages - 4));
+  for (let i = start; i <= Math.min(totalPages, start + 4); i++) pages.push(i);
+  const from = (page - 1) * perPage + 1;
+  const to = Math.min(total, page * perPage);
+  const nav = "grid h-9 w-9 place-items-center rounded-full border border-ink-200 bg-white text-ink-700 transition hover:border-ink-900 disabled:opacity-40 disabled:hover:border-ink-200";
+  return (
+    <div className="flex flex-col items-center justify-between gap-3 border-t border-ink-100 px-6 py-4 sm:flex-row">
+      <p className="text-sm text-ink-500">Showing <span className="num font-medium text-ink-800">{from}-{to}</span> of <span className="num font-medium text-ink-800">{total}</span></p>
+      <div className="flex items-center gap-1.5">
+        <button type="button" className={nav} disabled={page === 1} onClick={() => onChange(page - 1)} aria-label="Previous page"><ChevronLeft size={16} /></button>
+        {pages.map((p) => (
+          <button key={p} type="button" onClick={() => onChange(p)} aria-current={p === page ? "page" : undefined}
+            className={`num h-9 min-w-9 rounded-full px-3 text-sm font-medium transition ${p === page ? "bg-ink-950 text-paper" : "text-ink-600 hover:bg-ink-100"}`}>{p}</button>
+        ))}
+        <button type="button" className={nav} disabled={page === totalPages} onClick={() => onChange(page + 1)} aria-label="Next page"><ChevronRight size={16} /></button>
+      </div>
+    </div>
+  );
 }
 
 /* ---------- Component ---------- */
@@ -276,6 +251,7 @@ export default function InvoicesPage() {
     // AI modal
     const [aiOpen, setAiOpen] = useState(false);
     const [aiLoading, setAiLoading] = useState(false);
+    const [notice, setNotice] = useState(null);
 
     // fetch invoices from backend (auth-aware)
     const fetchInvoices = useCallback(async () => {
@@ -417,7 +393,7 @@ export default function InvoicesPage() {
         try {
             const token = await obtainToken();
             if (!token) {
-                alert("Delete requires authentication. Please sign in.");
+                setNotice({ type: "error", text: "Please sign in to delete invoices." });
                 router.push("/login");
                 return;
             }
@@ -429,7 +405,7 @@ export default function InvoicesPage() {
                 }
             );
             if (res.status === 401) {
-                alert("Unauthorized. Please sign in.");
+                setNotice({ type: "error", text: "Session expired. Please sign in again." });
                 router.push("/login");
                 return;
             }
@@ -438,10 +414,10 @@ export default function InvoicesPage() {
                 throw new Error(json?.message || `Delete failed (${res.status})`);
             }
             await fetchInvoices();
-            alert("Invoice deleted.");
+            setNotice({ type: "ok", text: `Invoice ${inv.id} deleted.` });
         } catch (err) {
             console.error("deleteInvoice error:", err);
-            alert(err?.message || "Failed to delete invoice.");
+            setNotice({ type: "error", text: "Failed to delete the invoice." });
         }
     }
 
@@ -490,7 +466,7 @@ export default function InvoicesPage() {
                         /quota|exhausted|resource_exhausted/i.test(serverMessage)
                     ) {
                         // explicit quota message
-                        throw new Error(`AI provider quota/exhausted: ${serverMessage}`);
+                        throw new Error("AI usage limit reached. Please try again later.");
                     }
 
                     // Other server errors
@@ -599,466 +575,157 @@ export default function InvoicesPage() {
         return c.name ? c.name.charAt(0).toUpperCase() : "C";
     };
 
+    const SortBtn = ({ k, children, right }) => (
+        <th scope="col" className={`px-6 py-3 font-semibold ${right ? "text-right" : ""}`} aria-sort={sortBy.key === k ? (sortBy.dir === "asc" ? "ascending" : "descending") : "none"}>
+            <button type="button" onClick={() => handleSort(k)} className="inline-flex items-center gap-1.5 uppercase tracking-wide hover:text-ink-900">
+                {children}
+                {sortBy.key === k ? (sortBy.dir === "asc" ? <ArrowUp size={13} /> : <ArrowDown size={13} />) : <ArrowUpDown size={13} className="opacity-40" />}
+            </button>
+        </th>
+    );
+    const count = (st) => allInvoices.filter((i) => String(i.status || "").toLowerCase() === st).length;
+    const hasFilters = search || status !== "all" || from || to;
+    const resetFilters = () => { setSearch(""); setStatus("all"); setFrom(""); setTo(""); setPage(1); };
+
     return (
-        <div className={invoicesStyles.pageContainer}>
-            {/* Header */}
-            <div className={invoicesStyles.headerContainer}>
-                <div>
-                    <h1 className={invoicesStyles.headerTitle}>Invoice Management</h1>
-                    <p className={invoicesStyles.headerSubtitle}>
-                        Search, filter, and manage your invoices with powerful AI tools
-                    </p>
-                </div>
-
-                <div className={invoicesStyles.headerActions}>
-                    <button
-                        type="button"
-                        onClick={() => setAiOpen(true)}
-                        className={invoicesStyles.aiButton}
-                    >
-                        <GeminiIcon className="w-6 h-6 group-hover:scale-110 transition-transform flex-none" />
-                        Create with AI
+        <div className="space-y-8">
+            <PageHeader
+                eyebrow="Billing"
+                title="Invoices"
+                subtitle="Search, filter and manage every invoice in one place."
+                actions={<>
+                    <button type="button" onClick={() => setAiOpen(true)} className={btnSecondary}>
+                        <Sparkles size={16} className="text-brand-600" /> Create with AI
                     </button>
-
-                    <button
-                        type="button"
-                        onClick={() => router.push("/app/create-invoice")}
-                        className={invoicesStyles.createButton}
-                    >
-                        <PlusIcon className="w-4 h-4" />
-                        Create Invoice
+                    <button type="button" onClick={() => router.push("/app/create-invoice")} className={btnPrimary}>
+                        <Plus size={16} /> New invoice
                     </button>
-                </div>
-            </div>
+                </>}
+            />
 
-            {/* Error banner */}
+            <AiInvoiceModal open={aiOpen} onClose={() => setAiOpen(false)} onGenerate={handleGenerateFromAI} loading={aiLoading} />
+
+            {notice && (
+                <div role="status" className={`flex items-center justify-between gap-3 rounded-2xl border px-5 py-3.5 text-sm ${notice.type === "ok" ? "border-brand-200 bg-brand-50 text-brand-800" : "border-rose-200 bg-rose-50 text-rose-700"}`}>
+                    <span className="flex items-center gap-2">{notice.type === "ok" ? <CheckCircle2 size={17} /> : <AlertCircle size={17} />} {notice.text}</span>
+                    <button type="button" onClick={() => setNotice(null)} className="text-xs font-semibold underline">Dismiss</button>
+                </div>
+            )}
             {error && (
-                <div
-                    style={{
-                        padding: 12,
-                        background: "#fff4f4",
-                        color: "#7f1d1d",
-                        borderRadius: 6,
-                        marginBottom: 12,
-                    }}
-                >
-                    <div
-                        style={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            alignItems: "center",
-                        }}
-                    >
-                        <div>{error}</div>
-                        <div style={{ display: "flex", gap: 8 }}>
-                            <button
-                                type="button"
-                                onClick={() => fetchInvoices()}
-                                style={{
-                                    padding: "6px 10px",
-                                    background: "#efefef",
-                                    borderRadius: 4,
-                                }}
-                            >
-                                Retry
-                            </button>
-                            {String(error).toLowerCase().includes("unauthorized") && (
-                                <button
-                                    type="button"
-                                    onClick={() => router.push("/login")}
-                                    style={{
-                                        padding: "6px 10px",
-                                        background: "#111827",
-                                        color: "white",
-                                        borderRadius: 4,
-                                    }}
-                                >
-                                    Sign in
-                                </button>
-                            )}
-                        </div>
+                <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-rose-200 bg-rose-50 px-5 py-4 text-sm text-rose-700">
+                    <span>{error}</span>
+                    <div className="flex gap-2">
+                        <button type="button" onClick={() => fetchInvoices()} className={btnSecondary}>Retry</button>
+                        {String(error).toLowerCase().includes("unauthorized") && <button type="button" onClick={() => router.push("/login")} className={btnPrimary}>Sign in</button>}
                     </div>
                 </div>
             )}
 
-            {/* Stats */}
-            <div className={invoicesStyles.statsGrid}>
-                <div className={invoicesStyles.statCard}>
-                    <div className={invoicesStyles.statValue}>{allInvoices.length}</div>
-                    <div className={invoicesStyles.statLabel}>Total Invoices</div>
-                </div>
-                <div className={invoicesStyles.statCard}>
-                    <div className={invoicesStyles.statValue}>
-                        {
-                            allInvoices.filter(
-                                (inv) => (inv.status || "").toString().toLowerCase() === "paid"
-                            ).length
-                        }
+            <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+                {[["Total", allInvoices.length, "text-ink-900"], ["Paid", count("paid"), "text-brand-700"], ["Unpaid", count("unpaid") + count("overdue"), "text-amber-600"], ["Drafts", count("draft"), "text-ink-500"]].map(([l, v, c]) => (
+                    <div key={l} className="rounded-2xl border border-ink-200 bg-white px-5 py-4 shadow-card">
+                        <p className="text-xs font-semibold uppercase tracking-wide text-ink-500">{l}</p>
+                        <p className={`num mt-1 text-3xl font-semibold ${c}`}>{v}</p>
                     </div>
-                    <div className={invoicesStyles.statLabel}>Paid</div>
-                </div>
-                <div className={invoicesStyles.statCard}>
-                    <div className={invoicesStyles.statValue}>
-                        {
-                            allInvoices.filter((inv) =>
-                                ["unpaid", "overdue"].includes(
-                                    (inv.status || "").toString().toLowerCase()
-                                )
-                            ).length
-                        }
-                    </div>
-                    <div className={invoicesStyles.statLabel}>Unpaid</div>
-                </div>
-                <div className={invoicesStyles.statCard}>
-                    <div className={invoicesStyles.statValue}>
-                        {
-                            allInvoices.filter(
-                                (inv) => (inv.status || "").toString().toLowerCase() === "draft"
-                            ).length
-                        }
-                    </div>
-                    <div className={invoicesStyles.statLabel}>Drafts</div>
-                </div>
+                ))}
             </div>
 
-            {/* Filters */}
-            <div className={invoicesStyles.filtersCard}>
-                <div className={invoicesStyles.filtersHeader}>
-                    <div className={invoicesStyles.filtersHeaderLeft}>
-                        <div className={invoicesStyles.filtersIconContainer}>
-                            <FilterIcon className="w-5 h-5" />
-                        </div>
-                        <h2 className={invoicesStyles.filtersTitle}>Filters & Search</h2>
-                    </div>
-                    <div className={invoicesStyles.filtersCount}>
-                        Showing{" "}
-                        <span className={invoicesStyles.filtersCountNumber}>
-                            {filtered.length}
-                        </span>{" "}
-                        of {allInvoices.length} invoices
-                    </div>
-                </div>
-
-                <div className={invoicesStyles.filtersGrid}>
-                    <div className={invoicesStyles.searchContainer}>
-                        <label
-                            htmlFor="invoice-search"
-                            className={invoicesStyles.filterLabel}
-                        >
-                            Search Invoices
-                        </label>
-                        <div className={invoicesStyles.searchInputContainer}>
-                            <div className={invoicesStyles.searchIcon}>
-                                <SearchIcon className="w-5 h-5 text-gray-400" />
-                            </div>
-                            <input
-                                id="invoice-search"
-                                name="search"
-                                value={search}
-                                onChange={(e) => {
-                                    setSearch(e.target.value);
-                                    setPage(1);
-                                }}
-                                onKeyDown={(e) => e.key === "Enter" && setPage(1)}
-                                placeholder="Search by client, invoice ID, email..."
-                                className={invoicesStyles.searchInput}
-                            />
-                        </div>
-                    </div>
-
+            <Card className="p-5">
+                <div className="grid gap-4 md:grid-cols-[1.4fr_0.8fr_1.2fr]">
                     <div>
-                        <label
-                            htmlFor="status-filter"
-                            className={invoicesStyles.filterLabel}
-                        >
-                            Status
-                        </label>
-                        <select
-                            id="status-filter"
-                            value={status}
-                            onChange={(e) => {
-                                setStatus(e.target.value);
-                                setPage(1);
-                            }}
-                            className={invoicesStyles.selectInput}
-                        >
-                            <option value="all">All Status</option>
-                            <option value="Paid">Paid</option>
-                            <option value="Unpaid">Unpaid</option>
-                            <option value="Overdue">Overdue</option>
-                            <option value="Draft">Draft</option>
+                        <label htmlFor="inv-search" className={labelCls}>Search</label>
+                        <div className="relative">
+                            <Search size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-400" />
+                            <input id="inv-search" type="search" maxLength={80} value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} placeholder="Client, invoice number or email" className={`${inputCls} pl-10`} />
+                        </div>
+                    </div>
+                    <div>
+                        <label htmlFor="inv-status" className={labelCls}>Status</label>
+                        <select id="inv-status" value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); }} className={inputCls}>
+                            <option value="all">All statuses</option>
+                            <option value="draft">Draft</option>
+                            <option value="unpaid">Unpaid</option>
+                            <option value="paid">Paid</option>
+                            <option value="overdue">Overdue</option>
                         </select>
                     </div>
-
-                    <div className={invoicesStyles.dateRangeContainer}>
-                        <label className={invoicesStyles.filterLabel}>Date Range</label>
-                        <div className={invoicesStyles.dateRangeFlex}>
-                            <input
-                                id="from-date"
-                                name="from"
-                                type="date"
-                                value={from}
-                                onChange={(e) => {
-                                    setFrom(e.target.value);
-                                    setPage(1);
-                                }}
-                                className={invoicesStyles.dateInput}
-                                aria-label="Start date"
-                            />
-                            <div className={invoicesStyles.dateSeparator}>
-                                <span className={invoicesStyles.dateSeparatorText}>to</span>
-                            </div>
-                            <input
-                                id="to-date"
-                                name="to"
-                                type="date"
-                                value={to}
-                                onChange={(e) => {
-                                    setTo(e.target.value);
-                                    setPage(1);
-                                }}
-                                className={invoicesStyles.dateInput}
-                                aria-label="End date"
-                            />
+                    <div>
+                        <span className={labelCls}>Issue date</span>
+                        <div className="flex items-center gap-2">
+                            <input aria-label="From date" type="date" value={from} onChange={(e) => { setFrom(e.target.value); setPage(1); }} className={inputCls} />
+                            <span className="text-xs text-ink-400">to</span>
+                            <input aria-label="To date" type="date" value={to} onChange={(e) => { setTo(e.target.value); setPage(1); }} className={inputCls} />
                         </div>
                     </div>
                 </div>
-
-                <div className={invoicesStyles.filtersFooter}>
-                    <div className={invoicesStyles.perPageContainer}>
-                        <label htmlFor="per-page" className={invoicesStyles.perPageLabel}>
-                            Show
-                        </label>
-                        <select
-                            id="per-page"
-                            value={perPage}
-                            onChange={(e) => {
-                                setPerPage(Number(e.target.value));
-                                setPage(1);
-                            }}
-                            className={invoicesStyles.perPageSelect}
-                        >
-                            <option value={6}>6 per page</option>
-                            <option value={10}>10 per page</option>
-                            <option value={20}>20 per page</option>
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-ink-100 pt-4">
+                    <div className="flex items-center gap-2 text-sm text-ink-600">
+                        <label htmlFor="per-page">Rows</label>
+                        <select id="per-page" value={perPage} onChange={(e) => { setPerPage(Number(e.target.value)); setPage(1); }} className="rounded-lg border border-ink-200 bg-white px-2.5 py-1.5 text-sm">
+                            {[6, 10, 20, 50].map((n) => <option key={n} value={n}>{n}</option>)}
                         </select>
                     </div>
-
-                    <div style={{ display: "flex", gap: 8 }}>
-                        <button
-                            type="button"
-                            onClick={() => {
-                                setSearch("");
-                                setStatus("all");
-                                setFrom("");
-                                setTo("");
-                                setPage(1);
-                            }}
-                            className={invoicesStyles.resetButton}
-                        >
-                            <ResetIcon className="w-4 h-4" /> Reset Filters
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => fetchInvoices()}
-                            className={invoicesStyles.resetButton}
-                        >
-                            Refresh
-                        </button>
-                    </div>
+                    {hasFilters && <button type="button" onClick={resetFilters} className="inline-flex items-center gap-1.5 text-sm font-semibold text-brand-700 hover:underline"><RotateCcw size={14} /> Clear filters</button>}
                 </div>
-            </div>
+            </Card>
 
-            {/* Table */}
-            <div className={invoicesStyles.tableCard}>
-                <div className={invoicesStyles.tableHeader}>
-                    <div className={invoicesStyles.tableHeaderContent}>
-                        <div>
-                            <h3 className={invoicesStyles.tableTitle}>All Invoices</h3>
-                            <p className={invoicesStyles.tableSubtitle}>
-                                Sorted by{" "}
-                                <span className={invoicesStyles.tableSubtitleBold}>
-                                    {sortBy.key}
-                                </span>{" "}
-                                ·{" "}
-                                <span className={invoicesStyles.tableSubtitleBold}>
-                                    {sortBy.dir === "asc" ? "Ascending" : "Descending"}
-                                </span>
-                            </p>
-                        </div>
-                    </div>
+            <Card className="overflow-hidden">
+                <div className="flex items-center justify-between border-b border-ink-100 px-6 py-5">
+                    <h2 className="text-lg font-semibold">All invoices</h2>
+                    <p className="text-sm text-ink-500"><span className="num font-medium text-ink-800">{filtered.length}</span> result{filtered.length === 1 ? "" : "s"}</p>
                 </div>
 
-                <div className={invoicesStyles.tableContainer}>
-                    <table className={invoicesStyles.table}>
-                        <thead>
-                            <tr className={invoicesStyles.tableHead}>
-                                <th
-                                    onClick={() => handleSort("client")}
-                                    className={invoicesStyles.tableHeaderCell}
-                                >
-                                    <div className={invoicesStyles.tableHeaderContent}>
-                                        Client{" "}
-                                        <SortIcon
-                                            direction={sortBy.key === "client" ? sortBy.dir : "asc"}
-                                        />
-                                    </div>
-                                </th>
-                                <th
-                                    onClick={() => handleSort("amount")}
-                                    className={invoicesStyles.tableHeaderCell}
-                                >
-                                    <div className={invoicesStyles.tableHeaderContent}>
-                                        Amount{" "}
-                                        <SortIcon
-                                            direction={sortBy.key === "amount" ? sortBy.dir : "asc"}
-                                        />
-                                    </div>
-                                </th>
-                                <th
-                                    onClick={() => handleSort("status")}
-                                    className={invoicesStyles.tableHeaderCell}
-                                >
-                                    <div className={invoicesStyles.tableHeaderContent}>
-                                        Status{" "}
-                                        <SortIcon
-                                            direction={sortBy.key === "status" ? sortBy.dir : "asc"}
-                                        />
-                                    </div>
-                                </th>
-                                <th
-                                    onClick={() => handleSort("dueDate")}
-                                    className={invoicesStyles.tableHeaderCell}
-                                >
-                                    <div className={invoicesStyles.tableHeaderContent}>
-                                        Due Date{" "}
-                                        <SortIcon
-                                            direction={sortBy.key === "dueDate" ? sortBy.dir : "asc"}
-                                        />
-                                    </div>
-                                </th>
-                                <th className={invoicesStyles.tableHeaderCellRight}>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody className={invoicesStyles.tableBody}>
-                            {pageData.map((inv) => {
-                                const client = normalizeClient(inv.client);
-                                const clientInitial = getClientInitial(inv.client);
-                                return (
-                                    <tr key={inv.id} className={invoicesStyles.tableRow}>
-                                        <td className={invoicesStyles.clientCell}>
-                                            <div className={invoicesStyles.clientContainer}>
-                                                <div className={invoicesStyles.clientAvatar}>
-                                                    {clientInitial}
-                                                </div>
-                                                <div>
-                                                    <div className={invoicesStyles.clientInfo}>
-                                                        {client.name || inv.company || inv.id}
-                                                    </div>
-                                                    <div className={invoicesStyles.clientId}>
-                                                        {inv.id}
-                                                    </div>
-                                                    <div className={invoicesStyles.clientEmail}>
-                                                        {client.email || inv.email}
+                {loading && allInvoices.length === 0 ? (
+                    <div className="grid place-items-center py-20"><Spinner /></div>
+                ) : pageData.length === 0 ? (
+                    <EmptyState icon={hasFilters ? Search : FileText} title={hasFilters ? "No invoices match your filters" : "No invoices yet"}
+                        text={hasFilters ? "Try a different search or clear the filters." : "Create your first invoice manually or describe it to AI."}
+                        action={hasFilters ? <button type="button" onClick={resetFilters} className={btnSecondary}>Clear filters</button> : <button type="button" onClick={() => router.push("/app/create-invoice")} className={btnPrimary}>Create invoice</button>} />
+                ) : (
+                    <div className="overflow-x-auto">
+                        <table className="w-full min-w-[760px] text-left text-sm">
+                            <thead>
+                                <tr className="text-xs text-ink-500">
+                                    <SortBtn k="id">Client</SortBtn>
+                                    <SortBtn k="amount">Amount</SortBtn>
+                                    <SortBtn k="status">Status</SortBtn>
+                                    <SortBtn k="dueDate">Due</SortBtn>
+                                    <th scope="col" className="px-6 py-3 text-right font-semibold uppercase tracking-wide">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-ink-100">
+                                {pageData.map((inv) => {
+                                    const client = normalizeClient(inv.client);
+                                    return (
+                                        <tr key={inv.id} className="transition hover:bg-ink-50/70">
+                                            <td className="px-6 py-4">
+                                                <div className="flex items-center gap-3">
+                                                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-brand-50 font-semibold text-brand-700 ring-1 ring-brand-100">{getClientInitial(inv.client)}</span>
+                                                    <div className="min-w-0">
+                                                        <p className="truncate font-medium">{client.name || inv.company || inv.id}</p>
+                                                        <p className="num text-xs text-ink-500">{inv.id}</p>
+                                                        {(client.email || inv.email) && <p className="truncate text-xs text-ink-400">{client.email || inv.email}</p>}
                                                     </div>
                                                 </div>
-                                            </div>
-                                        </td>
-                                        <td className={invoicesStyles.amountCell}>
-                                            {formatCurrency(inv.amount || 0, inv.currency)}
-                                        </td>
-                                        <td className={invoicesStyles.statusCell}>
-                                            <StatusBadge
-                                                status={inv.status}
-                                                size="default"
-                                                showIcon
-                                            />
-                                        </td>
-                                        <td className={invoicesStyles.dateCell}>
-                                            {inv.dueDate ? formatDate(inv.dueDate) : "—"}
-                                        </td>
-                                        <td className={invoicesStyles.actionsCell}>
-                                            <div className={invoicesStyles.actionsContainer}>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => openInvoice(inv)}
-                                                    className={invoicesStyles.viewButton}
-                                                >
-                                                    <EyeIcon className={invoicesStyles.buttonIcon} /> View
-                                                </button>
-
-                                                <button
-                                                    type="button"
-                                                    onClick={() => handleDeleteInvoice(inv)}
-                                                    className={invoicesStyles.sendButton}
-                                                    title="Delete invoice"
-                                                    style={{
-                                                        background: "#ffefef",
-                                                        color: "#b91c1c",
-                                                        borderColor: "#fca5a5",
-                                                    }}
-                                                >
-                                                    Delete
-                                                </button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                );
-                            })}
-                            {pageData.length === 0 && !loading && (
-                                <tr>
-                                    <td colSpan="5" className={invoicesStyles.emptyState}>
-                                        <div className={invoicesStyles.emptyStateText}>
-                                            <div className={invoicesStyles.emptyStateIconContainer}>
-                                                <SearchIcon className={invoicesStyles.emptyStateIcon} />
-                                            </div>
-                                            <div className={invoicesStyles.emptyStateTitle}>
-                                                No invoices found
-                                            </div>
-                                            <p className={invoicesStyles.emptyStateMessage}>
-                                                Try adjusting your search filters or create a new
-                                                invoice to get started.
-                                            </p>
-                                            <button
-                                                type="button"
-                                                onClick={() => router.push("/app/create-invoice")}
-                                                className={invoicesStyles.emptyStateAction}
-                                            >
-                                                Create your first invoice
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            )}
-                            {loading && (
-                                <tr>
-                                    <td colSpan="5" style={{ padding: 40, textAlign: "center" }}>
-                                        Loading invoices...
-                                    </td>
-                                </tr>
-                            )}
-                        </tbody>
-                    </table>
-                </div>
-
-                {pageData.length > 0 && (
-                    <div className={invoicesStyles.paginationContainer}>
-                        <Pagination
-                            page={page}
-                            totalPages={totalPages}
-                            onChange={(p) => setPage(p)}
-                        />
+                                            </td>
+                                            <td className="num px-6 py-4 font-medium">{formatCurrency(inv.amount || 0, inv.currency)}</td>
+                                            <td className="px-6 py-4"><StatusBadge status={inv.status} /></td>
+                                            <td className="px-6 py-4 text-ink-600">{inv.dueDate ? formatDate(inv.dueDate) : "-"}</td>
+                                            <td className="px-6 py-4">
+                                                <div className="flex justify-end gap-2">
+                                                    <button type="button" onClick={() => openInvoice(inv)} className="inline-flex items-center gap-1.5 rounded-full border border-ink-200 bg-white px-3.5 py-1.5 text-xs font-semibold transition hover:border-ink-900"><Eye size={14} /> View</button>
+                                                    <button type="button" onClick={() => handleDeleteInvoice(inv)} title="Delete invoice" aria-label={`Delete invoice ${inv.id}`} className="grid h-8 w-8 place-items-center rounded-full text-rose-600 transition hover:bg-rose-50"><Trash2 size={15} /></button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
                     </div>
                 )}
-            </div>
-
-            {/* AI modal */}
-            <AiInvoiceModal
-                open={aiOpen}
-                onClose={() => setAiOpen(false)}
-                onGenerate={handleGenerateFromAI}
-                initialText=""
-            />
+                <Pagination page={page} totalPages={totalPages} total={filtered.length} perPage={perPage} onChange={setPage} />
+            </Card>
         </div>
     );
 }

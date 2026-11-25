@@ -9,14 +9,14 @@ import {
   useState,
 } from "react";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE;
+import { API_BASE } from "@/lib/config";
 const TOKEN_KEY = "token";
 
 const AuthContext = createContext(null);
 
 function readStoredToken() {
   try {
-    return localStorage.getItem(TOKEN_KEY);
+    return sessionStorage.getItem(TOKEN_KEY);
   } catch {
     return null;
   }
@@ -24,8 +24,8 @@ function readStoredToken() {
 
 function writeStoredToken(token) {
   try {
-    if (token) localStorage.setItem(TOKEN_KEY, token);
-    else localStorage.removeItem(TOKEN_KEY);
+    if (token) sessionStorage.setItem(TOKEN_KEY, token);
+    else sessionStorage.removeItem(TOKEN_KEY);
   } catch {
     /* ignore storage errors */
   }
@@ -33,7 +33,7 @@ function writeStoredToken(token) {
 
 export function AuthProvider({ children }) {
   // Start null on both server and client render to avoid a hydration
-  // mismatch (localStorage isn't available during server rendering); the
+  // mismatch (sessionStorage isn't available during server rendering); the
   // real stored token is picked up in the effect below, right before the
   // existing "validate against /api/auth/me" effect runs.
   const [token, setToken] = useState(null);

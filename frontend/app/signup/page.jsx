@@ -1,129 +1,66 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { loginStyles } from "@/assets/dummyStyles";
+import { Check } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import AuthShell from "@/components/AuthShell";
+import { Field, PasswordInput, FormError, inputCls, submitCls } from "@/components/AuthFields";
 
-const Signup = () => {
+export default function SignupPage() {
   const router = useRouter();
   const { register } = useAuth();
-
-  const [form, setForm] = useState({ name: "", email: "", password: "" });
-  const [showPassword, setShowPassword] = useState(false);
+  const [form, setForm] = useState({ name: "", email: "", password: "", confirm: "" });
   const [error, setError] = useState("");
-  const [submitting, setSubmitting] = useState(false);
+  const [busy, setBusy] = useState(false);
 
-  const onChange = (e) =>
-    setForm((f) => ({ ...f, [e.target.name]: e.target.value }));
+  const onChange = (e) => setForm((f) => ({ ...f, [e.target.name]: e.target.value }));
+  const rules = useMemo(() => [
+    ["10+ characters", form.password.length >= 10],
+    ["Upper & lower case", /[a-z]/.test(form.password) && /[A-Z]/.test(form.password)],
+    ["A number", /\d/.test(form.password)],
+  ], [form.password]);
+  const strong = rules.every(([, ok]) => ok);
 
   const onSubmit = async (e) => {
     e.preventDefault();
+    if (busy) return;
     setError("");
-
-    if (form.password.length < 8) {
-      setError("Password must be at least 8 characters");
-      return;
-    }
-
-    setSubmitting(true);
-    const result = await register(form);
-    setSubmitting(false);
-    if (result.ok) {
-      router.replace("/app/dashboard");
-    } else {
-      setError(result.error || "Registration failed");
-    }
+    if (!strong) return setError("Please choose a stronger password.");
+    if (form.password !== form.confirm) return setError("Passwords do not match.");
+    setBusy(true);
+    const r = await register({ name: form.name.trim(), email: form.email.trim(), password: form.password });
+    setBusy(false);
+    if (r.ok) router.replace("/app/dashboard"); else setError(r.error || "Registration failed");
   };
 
   return (
-    <div className={loginStyles.root}>
-      <div className={loginStyles.container}>
-        <div className={loginStyles.formContainer}>
-          <h1 className={loginStyles.title}>Create your account</h1>
-          <p className={loginStyles.subtitle}>Start generating invoices in seconds</p>
-
-          {error && <div className={loginStyles.error}>{error}</div>}
-
-          <form className={loginStyles.form} onSubmit={onSubmit}>
-            <div className={loginStyles.formGroup}>
-              <label className={loginStyles.label} htmlFor="name">
-                Name
-              </label>
-              <input
-                id="name"
-                name="name"
-                type="text"
-                autoComplete="name"
-                required
-                className={loginStyles.input}
-                value={form.name}
-                onChange={onChange}
-              />
-            </div>
-
-            <div className={loginStyles.formGroup}>
-              <label className={loginStyles.label} htmlFor="email">
-                Email
-              </label>
-              <input
-                id="email"
-                name="email"
-                type="email"
-                autoComplete="email"
-                required
-                className={loginStyles.input}
-                value={form.email}
-                onChange={onChange}
-              />
-            </div>
-
-            <div className={loginStyles.formGroup}>
-              <label className={loginStyles.label} htmlFor="password">
-                Password
-              </label>
-              <div className={loginStyles.passwordContainer}>
-                <input
-                  id="password"
-                  name="password"
-                  type={showPassword ? "text" : "password"}
-                  autoComplete="new-password"
-                  required
-                  minLength={8}
-                  className={loginStyles.passwordInput}
-                  value={form.password}
-                  onChange={onChange}
-                />
-                <button
-                  type="button"
-                  className={loginStyles.passwordToggle}
-                  onClick={() => setShowPassword((s) => !s)}
-                >
-                  {showPassword ? "Hide" : "Show"}
-                </button>
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              className={loginStyles.submitButton}
-              disabled={submitting}
-            >
-              {submitting ? "Creating account..." : "Sign up"}
-            </button>
-          </form>
-
-          <div className={loginStyles.signupContainer}>
-            Already have an account?{" "}
-            <Link href="/login" className={loginStyles.signupLink}>
-              Sign in
-            </Link>
-          </div>
-        </div>
-      </div>
-    </div>
+    <AuthShell title="Create your account" subtitle="Start generating invoices in seconds - free."
+      footer={<>Already have an account? <Link href="/login" className="font-semibold text-brand-700 hover:underline">Sign in</Link></>}>
+      <FormError message={error} />
+      <form onSubmit={onSubmit} className="space-y-5">
+        <Field label="Full name" id="name">
+          <input id="name" name="name" type="text" required maxLength={80} autoComplete="name" placeholder="Jane Cooper" value={form.name} onChange={onChange} className={inputCls} />
+        </Field>
+        <Field label="Work email" id="email">
+          <input id="email" name="email" type="email" required maxLength={254} autoComplete="email" placeholder="you@company.com" value={form.email} onChange={onChange} className={inputCls} />
+        </Field>
+        <Field label="Password" id="password">
+          <PasswordInput id="password" name="password" autoComplete="new-password" placeholder="Create a strong password" value={form.password} onChange={onChange} />
+          <ul className="mt-3 flex flex-wrap gap-2">
+            {rules.map(([t, ok]) => (
+              <li key={t} className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ring-1 transition ${ok ? "bg-brand-50 text-brand-700 ring-brand-200" : "bg-ink-50 text-ink-500 ring-ink-200"}`}>
+                <Check size={12} className={ok ? "opacity-100" : "opacity-30"} /> {t}
+              </li>
+            ))}
+          </ul>
+        </Field>
+        <Field label="Confirm password" id="confirm">
+          <PasswordInput id="confirm" name="confirm" autoComplete="new-password" placeholder="Repeat password" value={form.confirm} onChange={onChange} />
+        </Field>
+        <button type="submit" disabled={busy} className={submitCls}>{busy ? "Creating account..." : "Create account"}</button>
+      </form>
+    </AuthShell>
   );
-};
-
-export default Signup;
+}

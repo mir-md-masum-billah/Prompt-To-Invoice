@@ -14,8 +14,8 @@ const businessProfileSchema = new mongoose.Schema({
 
 
     // for images
-    logoUrl:{type: String, required: false, default: "null"},
-    stampUrl:{type: String, required: false, default: "null"},
+    logoUrl:{type: String, required: false, default: null},
+    stampUrl:{type: String, required: false, default: null},
     signatureUrl: {type: String, required: false, default:null},
 
 

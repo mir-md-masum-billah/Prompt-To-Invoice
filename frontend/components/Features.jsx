@@ -1,169 +1,55 @@
-"use client";
-
 import React from "react";
-import { featuresStyles } from "@/assets/dummyStyles";
+import { MessageSquareText, FileCheck2, LayoutDashboard, Building2, Coins, ShieldCheck } from "lucide-react";
 
-const FeatureCard = ({ title, desc, icon, delay = 0 }) => (
-  <div
-    className={featuresStyles.featureCard}
-    style={{ transitionDelay: `${delay}ms` }}
-  >
-    <div className={featuresStyles.featureCardGradient}></div>
-    <div className={featuresStyles.featureCardBorder}></div>
-    <div className={featuresStyles.featureCardContent}>
-      <div className={featuresStyles.featureCardIconContainer}>{icon}</div>
-      <div className={featuresStyles.featureCardTextContainer}>
-        <h4 className={featuresStyles.featureCardTitle}>{title}</h4>
-        <p className={featuresStyles.featureCardDescription}>{desc}</p>
+const steps = [
+  { n: "01", t: "Describe", d: "Write what you did, for whom and the rate - exactly how you'd say it out loud." },
+  { n: "02", t: "Review", d: "AI builds line items, tax, currency and due date. Edit anything before it goes out." },
+  { n: "03", t: "Send & track", d: "Download a polished PDF, mark paid, and watch your dashboard update." },
+];
 
-        <div className={featuresStyles.featureCardCta}>
-          <span className={featuresStyles.featureCardCtaText}>Learn more</span>
-          <svg
-            className={featuresStyles.featureCardCtaIcon}
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M9 5l7 7-7 7"
-            />
-          </svg>
-        </div>
-      </div>
-    </div>
-  </div>
-);
+const features = [
+  { i: MessageSquareText, t: "Natural-language generation", d: "No rigid forms. Conversational AI is the primary way to create an invoice.", span: "lg:col-span-2" },
+  { i: Coins, t: "Multi-currency", d: "Native USD and EUR with accurate totals and tax handling." },
+  { i: Building2, t: "Business profiles", d: "Save logo, stamp, signature and tax ID once. Reuse everywhere." },
+  { i: FileCheck2, t: "Full invoice lifecycle", d: "Create, edit, track status - draft, unpaid, paid, overdue - and keep everything organised.", span: "lg:col-span-2" },
+  { i: LayoutDashboard, t: "Business visibility", d: "KPIs at a glance: billed, collected and outstanding." },
+  { i: ShieldCheck, t: "Secure by default", d: "Hashed credentials, strict access control and private records per account." },
+];
 
-const Features = () => {
-  const features = [
-    {
-      title: "AI Invoice Parsing",
-      desc: "Paste freeform text and let our advanced AI extract client details, line items, and totals into a perfectly formatted draft invoice in seconds.",
-      icon: (
-        <svg
-          width="24"
-          height="24"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-          <polyline points="14,2 14,8 20,8" />
-          <line x1="16" y1="13" x2="8" y2="13" />
-          <line x1="16" y1="17" x2="8" y2="17" />
-          <polyline points="10,9 9,9 8,9" />
-        </svg>
-      ),
-    },
-    {
-      title: "Smart Email Reminders",
-      desc: "Generate professional, context-aware reminder emails with one click — complete with intelligent tone selection and personalized messaging.",
-      icon: (
-        <svg
-          width="24"
-          height="24"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
-          <polyline points="22,6 12,13 2,6" />
-        </svg>
-      ),
-    },
-    {
-      title: "Professional PDF Export",
-      desc: "Generate high-quality, brand-consistent PDF invoices with reliable email delivery and comprehensive tracking of all sent communications.",
-      icon: (
-        <svg
-          width="24"
-          height="24"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-          <polyline points="14,2 14,8 20,8" />
-          <line x1="16" y1="13" x2="8" y2="13" />
-          <line x1="16" y1="17" x2="8" y2="17" />
-          <polyline points="10,9 9,9 8,9" />
-        </svg>
-      ),
-    },
-  ];
-
+export default function Features() {
   return (
-    <section id="features" className={featuresStyles.section}>
-      <div className={featuresStyles.backgroundBlob1}></div>
-      <div className={featuresStyles.backgroundBlob2}></div>
-      <div className={featuresStyles.backgroundBlob3}></div>
-
-      <div className={featuresStyles.container}>
-        <div className={featuresStyles.headerContainer}>
-          <div className={featuresStyles.badge}>
-            <span className={featuresStyles.badgeDot}></span>
-            <span className={featuresStyles.badgeText}>Powerful Features</span>
+    <>
+      <section id="how" className="border-y border-ink-200 bg-ink-950 py-24 text-paper">
+        <div className="mx-auto max-w-7xl px-5 lg:px-8">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-signal">How it works</p>
+          <h2 className="font-display-tight mt-3 max-w-2xl text-4xl font-semibold sm:text-5xl">From a sentence to a send-ready invoice.</h2>
+          <div className="mt-14 grid gap-px overflow-hidden rounded-3xl bg-ink-800 md:grid-cols-3">
+            {steps.map((s) => (
+              <div key={s.n} className="bg-ink-950 p-8 transition hover:bg-ink-900">
+                <div className="num text-sm text-brand-400">{s.n}</div>
+                <h3 className="font-display-tight mt-6 text-2xl font-semibold">{s.t}</h3>
+                <p className="mt-3 leading-relaxed text-ink-300">{s.d}</p>
+              </div>
+            ))}
           </div>
-
-          <h2 className={featuresStyles.title}>
-            Built for{" "}
-            <span className={featuresStyles.titleGradient}>Speed & Clarity</span>
-          </h2>
-
-          <p className={featuresStyles.subtitle}>
-            A minimal, intelligent interface that focuses on what truly matters -
-            create, send and track invoices effortlessly while maintaining professional
-            excellence.
-          </p>
         </div>
+      </section>
 
-        <div className={featuresStyles.featuresGrid}>
-          {features.map((feature, index) => (
-            <FeatureCard
-              key={feature.title}
-              title={feature.title}
-              desc={feature.desc}
-              icon={feature.icon}
-              delay={index * 100}
-            />
-          ))}
+      <section id="features" className="py-24 lg:py-32">
+        <div className="mx-auto max-w-7xl px-5 lg:px-8">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-700">Features</p>
+          <h2 className="font-display-tight mt-3 max-w-2xl text-4xl font-semibold sm:text-5xl">Everything billing needs. Nothing it doesn&apos;t.</h2>
+          <div className="mt-14 grid gap-5 lg:grid-cols-3">
+            {features.map(({ i: Icon, t, d, span = "" }) => (
+              <article key={t} className={`group rounded-3xl border border-ink-200 bg-white p-8 shadow-card transition hover:-translate-y-1 hover:shadow-lift ${span}`}>
+                <div className="grid h-12 w-12 place-items-center rounded-2xl bg-brand-50 text-brand-700 ring-1 ring-brand-100 transition group-hover:bg-brand-700 group-hover:text-white"><Icon size={22} /></div>
+                <h3 className="mt-6 text-xl font-semibold">{t}</h3>
+                <p className="mt-2 leading-relaxed text-ink-600">{d}</p>
+              </article>
+            ))}
+          </div>
         </div>
-
-        {/* bottom cta */}
-        <div className={featuresStyles.bottomCtaContainer}>
-         <button className={featuresStyles.bottomCtaButton}>
-            <span>{featuresStyles.bottomCtaButtonText}</span>
-             {/* Bottom CTA */}
-            <svg
-              className={featuresStyles.bottomCtaButtonIcon}
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M9 5l7 7-7 7"
-              />
-            </svg>
-         </button>
-        </div>
-      </div>
-    </section>
+      </section>
+    </>
   );
-};
-
-export default Features;
+}

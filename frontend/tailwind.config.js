@@ -1,101 +1,43 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
-  // Explicit default ('media' = respect the OS/browser color-scheme preference).
-  // Nothing in this app uses `dark:` variants yet, but this documents the
-  // current behavior rather than leaving it implicit.
   darkMode: "media",
-
-  // Every place Tailwind classes actually appear in this project. Kept split
-  // by folder (rather than one broad "./**/*.{js,jsx}") so it's obvious what
-  // feeds the scanner, and so build tools don't waste time walking
-  // node_modules/.next/public.
-  content: [
-    "./app/**/*.{js,jsx}", // route pages + layouts (App Router)
-    "./components/**/*.{js,jsx}", // shared UI (Navbar, AppShell, Dashboard, ...)
-    "./context/**/*.{js,jsx}", // AuthContext (SignedIn/SignedOut render classes)
-    "./assets/**/*.{js,jsx}", // dummyStyles.js — the class-name string source of truth
-    "./lib/**/*.{js,jsx}", // small helpers; included for completeness
-  ],
-
+  content: ["./app/**/*.{js,jsx}", "./components/**/*.{js,jsx}", "./context/**/*.{js,jsx}", "./assets/**/*.{js,jsx}", "./lib/**/*.{js,jsx}"],
   theme: {
     extend: {
-      // AppShell's header CTA button (components/AppShell.jsx) switches between
-      // "Create Invoice" and "Create" with `xs:inline` / `xs:hidden`, but Tailwind
-      // has no `xs` breakpoint out of the box. 480px matches the mobile cutoff
-      // already used for the print-preview layout in app/globals.css, so it's
-      // consistent with the one "small mobile" line this codebase already draws.
-      screens: {
-        xs: "480px",
-      },
-
-      // The primary CTA gradient (`from-blue-600 to-indigo-600`) is repeated
-      // ~17 times across dummyStyles.js (buttons, active nav links, totals).
-      // Aliased here as `brand`/`brand-dark` so a future rename only touches
-      // one place; existing components keep working unchanged either way.
+      screens: { xs: "480px" },
       colors: {
+        // Ink: cool, slightly blue-black neutrals (replaces gray/slate everywhere)
+        ink: {
+          50: "#F6F7F9", 100: "#ECEEF2", 200: "#DADDE4", 300: "#BAC0CC", 400: "#8B95A7",
+          500: "#667085", 600: "#4B5565", 700: "#353D4A", 800: "#1F2530", 900: "#0F131A", 950: "#080A0F",
+        },
+        // Brand: deep emerald - "money, settled, paid"
         brand: {
-          DEFAULT: "#2563eb", // Tailwind's blue-600
-          dark: "#4338ca", // Tailwind's indigo-700
+          DEFAULT: "#0F6F4E", dark: "#0C4934",
+          50: "#ECFBF4", 100: "#D1F5E4", 200: "#A5EACB", 300: "#6FD9AD", 400: "#3CC38C",
+          500: "#1FA874", 600: "#128A5E", 700: "#0F6F4E", 800: "#0E5840", 900: "#0C4934", 950: "#052A1E",
         },
+        paper: "#FBFAF7",
+        signal: { DEFAULT: "#D9F24A", dark: "#B8D12A" },
       },
-
-      // `font-[pacifico]` shows up in every page's `pageContainer` style
-      // (dummyStyles.js) but no "Pacifico" font is ever loaded, so it silently
-      // falls back to the browser default. This token doesn't change that —
-      // it just gives the intended stack a name if the font is added later
-      // (e.g. via next/font/google) and the arbitrary-value classes are
-      // swapped for `font-pacifico`.
       fontFamily: {
-        pacifico: ["Pacifico", "cursive"],
+        sans: ["var(--font-sans)", "ui-sans-serif", "system-ui", "sans-serif"],
+        display: ["var(--font-display)", "ui-serif", "Georgia", "serif"],
+        mono: ["var(--font-mono)", "ui-monospace", "SFMono-Regular", "monospace"],
       },
-
-      // Tailwind's default box-shadow scale stops at `shadow-2xl`, but
-      // `hover:shadow-3xl` is used twice in dummyStyles.js (Hero's primary
-      // button and the hero demo card) — without this, both currently
-      // compile to nothing and the hover has no effect at all.
       boxShadow: {
-        "3xl": "0 35px 60px -15px rgba(0, 0, 0, 0.3)",
+        "3xl": "0 35px 60px -15px rgba(8,10,15,0.35)",
+        card: "0 1px 2px rgba(15,19,26,0.04), 0 8px 24px -8px rgba(15,19,26,0.08)",
+        lift: "0 2px 4px rgba(15,19,26,0.05), 0 24px 48px -16px rgba(15,19,26,0.18)",
       },
-
-      // Not referenced anywhere yet — the default scale (up to `rounded-3xl`)
-      // covers every card/button in this app today. Added as a real, working
-      // token in case a future design (e.g. an even softer modal or hero
-      // panel) wants a bigger radius than `rounded-3xl` without another trip
-      // through this file.
-      borderRadius: {
-        "4xl": "2rem",
-      },
-
-      // Also unused today: AppShell's mobile drawer and sticky header sit at
-      // z-40/z-50 (both in Tailwind's default scale already). These two
-      // extra steps exist for whatever eventually needs to stack above them
-      // — a toast, a confirm dialog, a tooltip — without picking an
-      // arbitrary `z-[9999]` at the call site.
-      zIndex: {
-        60: "60",
-        70: "70",
-      },
-
-      // New, unused utilities — `app/globals.css` already hand-writes the
-      // `animate-blob` / `animate-float-*` / `animate-pulse-slow` keyframes
-      // this project actually uses, so those are deliberately *not*
-      // duplicated here (that would just create two competing definitions
-      // of the same class). `fade-in` and `slide-up` are real, working
-      // Tailwind animations nothing currently applies.
+      borderRadius: { "4xl": "2rem" },
+      zIndex: { 60: "60", 70: "70" },
       keyframes: {
-        "fade-in": {
-          "0%": { opacity: "0" },
-          "100%": { opacity: "1" },
-        },
-        "slide-up": {
-          "0%": { opacity: "0", transform: "translateY(12px)" },
-          "100%": { opacity: "1", transform: "translateY(0)" },
-        },
+        "fade-in": { "0%": { opacity: "0" }, "100%": { opacity: "1" } },
+        "slide-up": { "0%": { opacity: "0", transform: "translateY(14px)" }, "100%": { opacity: "1", transform: "translateY(0)" } },
+        marquee: { "0%": { transform: "translateX(0)" }, "100%": { transform: "translateX(-50%)" } },
       },
-      animation: {
-        "fade-in": "fade-in 0.4s ease-out",
-        "slide-up": "slide-up 0.4s ease-out",
-      },
+      animation: { "fade-in": "fade-in .4s ease-out both", "slide-up": "slide-up .5s cubic-bezier(.2,.7,.2,1) both", marquee: "marquee 40s linear infinite" },
     },
   },
   plugins: [],

@@ -5,14 +5,11 @@ import { useRouter, useParams } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import StatusBadge from "@/components/StatusBadge";
 import { getNavState, setNavState } from "@/lib/navState";
-import {
-  createInvoiceStyles,
-  createInvoiceIconColors,
-  createInvoiceCustomStyles,
-} from "@/assets/dummyStyles";
+import { Eye, Save, Plus, Trash2, Upload, Building2, UserRound, ListChecks, ImageIcon, Stamp, PenLine } from "lucide-react";
+import { PageHeader, Card, btnPrimary, btnSecondary, inputCls, labelCls } from "@/components/ui";
 
 /* ---------- API BASE ---------- */
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE;
+import { API_BASE } from "@/lib/config";
 
 /* ---------- storage helpers (unchanged) ---------- */
 /* ----------------- frontend-only: normalize image URLs ----------------- */
@@ -286,21 +283,27 @@ export default function CreateInvoice() {
   /* images - keep as data URLs in the invoice object */
   function handleImageUpload(file, kind = "logo") {
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = ({ target }) => {
-      const dataUrl = target?.result;
-      if (!dataUrl) return;
-      setInvoice((inv) =>
-        inv
-          ? {
-            ...inv,
-            [`${kind}DataUrl`]: dataUrl,
-            ...(kind === "logo" ? { logoDataUrl: dataUrl } : {}),
-          }
-          : inv
-      );
+    if (!/^image\/(png|jpeg|webp)$/.test(file.type) || file.size > 5 * 1024 * 1024) {
+      setInvoice((inv) => (inv ? { ...inv, _uploadError: "Use a PNG, JPG or WEBP image under 5 MB." } : inv));
+      return;
+    }
+    // Downscale in the browser so the stored data URL stays small (server caps inline images).
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const max = kind === "logo" ? 520 : 420;
+      const scale = Math.min(1, max / Math.max(img.width, img.height));
+      const c = document.createElement("canvas");
+      c.width = Math.max(1, Math.round(img.width * scale));
+      c.height = Math.max(1, Math.round(img.height * scale));
+      c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url);
+      let dataUrl = c.toDataURL(file.type === "image/png" ? "image/png" : "image/webp", 0.85);
+      if (dataUrl.length > 600000) dataUrl = c.toDataURL("image/webp", 0.7);
+      setInvoice((inv) => (inv ? { ...inv, [`${kind}DataUrl`]: dataUrl, _uploadError: dataUrl.length > 650000 ? "Image is too detailed - try a smaller one." : "" } : inv));
     };
-    reader.readAsDataURL(file);
+    img.onerror = () => URL.revokeObjectURL(url);
+    img.src = url;
   }
   function removeImage(kind = "logo") {
     setInvoice((inv) =>
@@ -659,7 +662,7 @@ export default function CreateInvoice() {
         items: items || [],
         currency: invoice.currency || "USD",
         status: invoice.status || "draft",
-        taxPercent: Number(invoice.taxPercent ?? 18),
+        taxPercent: Number(invoice.taxPercent ?? 0),
         subtotal: computeTotals(items, invoice.taxPercent).subtotal,
         tax: computeTotals(items, invoice.taxPercent).tax,
         total: computeTotals(items, invoice.taxPercent).total,
@@ -671,6 +674,7 @@ export default function CreateInvoice() {
         notes: invoice.notes || "",
         localId: invoice.id,
       };
+      delete prepared._uploadError;
 
       // include invoiceNumber only if provided (we prefill for new invoices)
       if (
@@ -811,835 +815,167 @@ export default function CreateInvoice() {
     router.push(`/app/invoices/${invoice.id}/preview`);
   }
 
-  const totals = computeTotals(items, invoice?.taxPercent ?? 18);
+  const totals = computeTotals(items, invoice?.taxPercent ?? 0);
 
   /* ---------- JSX (kept structure, invoiceNumber input prefills generated value) ---------- */
-  return (
-    <div className={createInvoiceStyles.pageContainer}>
-      {/* Header Section */}
-      <div className={createInvoiceStyles.headerContainer}>
-        <div>
-          <h1 className={createInvoiceStyles.headerTitle}>
-            {isEditing ? "Edit Invoice" : "Create New Invoice"}
-          </h1>
-          <p className={createInvoiceStyles.headerSubtitle}>
-            {isEditing
-              ? "Update invoice details and items below"
-              : "Fill in invoice details, add line items, and configure branding"}
-          </p>
-        </div>
+  const money = (n) => currencyFmt(n, invoice.currency);
+  const set = (f) => (e) => updateInvoiceField(f, e.target.value);
+  const cl = (f) => (e) => updateClient(f, e.target.value);
+  const STATUSES = ["draft", "unpaid", "paid", "overdue"];
+  const SECTION_ICON = "grid h-10 w-10 place-items-center rounded-xl bg-brand-50 text-brand-700 ring-1 ring-brand-100";
 
-        <div className={createInvoiceStyles.headerButtonContainer}>
-          <button
-            onClick={handlePreview}
-            className={createInvoiceStyles.previewButton}
-          >
-            <PreviewIcon className="w-4 h-4" />
-            Preview
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={loading}
-            className={createInvoiceStyles.saveButton}
-          >
-            <SaveIcon className="w-4 h-4" />
-            {loading
-              ? "Saving..."
-              : isEditing
-                ? "Update Invoice"
-                : "Create Invoice"}
-          </button>
-        </div>
-      </div>
-      {/* Invoice Header Section */}
-      <div className={createInvoiceStyles.cardContainer}>
-        <div className={createInvoiceStyles.cardHeaderContainer}>
-          <div
-            className={`${createInvoiceStyles.cardIconContainer} ${createInvoiceIconColors.invoice}`}
-          >
-            <svg
-              className="w-5 h-5"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-            >
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-              <polyline points="14 2 14 8 20 8" />
-              <line x1="16" y1="13" x2="8" y2="13" />
-              <line x1="16" y1="17" x2="8" y2="17" />
-              <polyline points="10 9 9 9 8 9" />
-            </svg>
+  const ImageSlot = ({ kind, label, hint, Icon }) => {
+    const src = invoice?.[`${kind}DataUrl`];
+    return (
+      <div className="rounded-2xl border border-dashed border-ink-300 bg-ink-50/60 p-4">
+        <div className="mb-3 flex items-center gap-2 text-sm font-semibold"><Icon size={16} className="text-brand-700" /> {label}</div>
+        <div className="flex items-center gap-4">
+          <div className="grid h-20 w-24 shrink-0 place-items-center overflow-hidden rounded-xl border border-ink-200 bg-white">
+            {src ? <img src={src} alt={`${label} preview`} className="max-h-full max-w-full object-contain" onError={(e) => { e.currentTarget.style.display = "none"; }} /> : <ImageIcon size={24} className="text-ink-300" />}
           </div>
-          <h2 className={createInvoiceStyles.cardTitle}>Invoice Details</h2>
-        </div>
-
-        <div className={createInvoiceStyles.gridCols3}>
-          <div>
-            <label className={createInvoiceStyles.label}>Invoice Number</label>
-            <input
-              value={invoice?.invoiceNumber || ""}
-              onChange={(e) =>
-                updateInvoiceField("invoiceNumber", e.target.value)
-              }
-              className={createInvoiceStyles.inputMedium}
-            />
-          </div>
-
-          <div>
-            <label className={createInvoiceStyles.label}>Invoice Date</label>
-            <input
-              type="date"
-              value={invoice?.issueDate || ""}
-              onChange={(e) => updateInvoiceField("issueDate", e.target.value)}
-              className={createInvoiceStyles.input}
-            />
-          </div>
-
-          <div>
-            <label className={createInvoiceStyles.label}>Due Date</label>
-            <input
-              type="date"
-              value={invoice?.dueDate || ""}
-              onChange={(e) => updateInvoiceField("dueDate", e.target.value)}
-              className={createInvoiceStyles.input}
-            />
-          </div>
-        </div>
-
-        {/* Currency and Status Section */}
-        <div className={createInvoiceStyles.currencyStatusGrid}>
-          {/* Currency Selection */}
-          <div>
-            <label className={createInvoiceStyles.labelWithMargin}>
-              Currency
-            </label>
-            <div className={createInvoiceStyles.currencyContainer}>
-              <button
-                onClick={() => handleCurrencyChange("USD")}
-                className={`${createInvoiceStyles.currencyButton} ${invoice.currency === "USD"
-                    ? createInvoiceStyles.currencyButtonActive1
-                    : createInvoiceStyles.currencyButtonInactive
-                  }`}
-              >
-                <span className={createInvoiceCustomStyles.currencySymbol}>
-                  $
-                </span>
-                <div className="text-left">
-                  <div className="font-medium">US Dollar</div>
-                  <div className="text-xs opacity-70">USD</div>
-                </div>
-              </button>
-
-              <button
-                onClick={() => handleCurrencyChange("EUR")}
-                className={`${createInvoiceStyles.currencyButton} ${invoice.currency === "EUR"
-                    ? createInvoiceStyles.currencyButtonActive2
-                    : createInvoiceStyles.currencyButtonInactive
-                  }`}
-              >
-                <span className={createInvoiceCustomStyles.currencySymbol}>
-                  €
-                </span>
-                <div className="text-left">
-                  <div className="font-medium">Euro</div>
-                  <div className="text-xs opacity-70">EUR</div>
-                </div>
-              </button>
+          <div className="min-w-0">
+            <p className="text-xs text-ink-500">{hint}</p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-ink-200 bg-white px-3 py-1.5 text-xs font-semibold hover:border-ink-900 focus-within:ring-4 focus-within:ring-brand-100">
+                <Upload size={13} /> {src ? "Replace" : "Upload"}
+                <input type="file" accept="image/png,image/jpeg,image/webp" className="sr-only" onChange={(e) => { handleImageUpload(e.target.files && e.target.files[0], kind); e.target.value = ""; }} />
+              </label>
+              {src && <button type="button" onClick={() => removeImage(kind)} className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50"><Trash2 size={13} /> Remove</button>}
             </div>
           </div>
+        </div>
+      </div>
+    );
+  };
 
-          {/* Status Selection */}
-          <div>
-            <label className={createInvoiceStyles.labelWithMargin}>
-              Status
-            </label>
-            <div className={createInvoiceStyles.statusContainer}>
-              {[
-                { value: "draft", label: "Draft" },
-                { value: "unpaid", label: "Unpaid" },
-                { value: "paid", label: "Paid" },
-                { value: "overdue", label: "Overdue" },
-              ].map((status) => (
-                <button
-                  key={status.value}
-                  onClick={() => handleStatusChange(status.value)}
-                  className={`${createInvoiceStyles.statusButton} ${invoice.status === status.value
-                      ? createInvoiceStyles.statusButtonActive
-                      : createInvoiceStyles.statusButtonInactive
-                    }`}
-                >
-                  <StatusBadge
-                    status={status.label}
-                    size="default"
-                    showIcon={true}
-                  />
+  return (
+    <div className="space-y-8">
+      <PageHeader
+        eyebrow={isEditing ? "Editing" : "New"}
+        title={isEditing ? "Edit invoice" : "Create invoice"}
+        subtitle={isEditing ? "Update details and line items." : "Fill in the details, add line items and branding."}
+        actions={<>
+          <button type="button" onClick={handlePreview} className={btnSecondary}><Eye size={16} /> Preview</button>
+          <button type="button" onClick={handleSave} disabled={loading} className={btnPrimary}><Save size={16} /> {loading ? "Saving..." : isEditing ? "Update invoice" : "Save invoice"}</button>
+        </>}
+      />
+      {invoice?._uploadError && <div role="alert" className="rounded-2xl border border-rose-200 bg-rose-50 px-5 py-3 text-sm text-rose-700">{invoice._uploadError}</div>}
+
+      <Card className="p-7">
+        <div className="grid gap-5 md:grid-cols-3">
+          <div><label className={labelCls} htmlFor="ci-num">Invoice number</label><input id="ci-num" maxLength={40} className={`${inputCls} num`} value={invoice?.invoiceNumber || ""} onChange={set("invoiceNumber")} /></div>
+          <div><label className={labelCls} htmlFor="ci-issue">Issue date</label><input id="ci-issue" type="date" className={inputCls} value={invoice?.issueDate || ""} onChange={set("issueDate")} /></div>
+          <div><label className={labelCls} htmlFor="ci-due">Due date</label><input id="ci-due" type="date" className={inputCls} value={invoice?.dueDate || ""} onChange={set("dueDate")} /></div>
+        </div>
+        <div className="mt-6 grid gap-6 md:grid-cols-2">
+          <fieldset>
+            <legend className={labelCls}>Currency</legend>
+            <div className="grid grid-cols-2 gap-3">
+              {[["USD", "$", "US Dollar"], ["EUR", "\u20AC", "Euro"]].map(([c, sym, n]) => (
+                <button key={c} type="button" onClick={() => handleCurrencyChange(c)} aria-pressed={invoice.currency === c}
+                  className={`flex items-center gap-3 rounded-2xl border px-4 py-3 text-left transition ${invoice.currency === c ? "border-brand-600 bg-brand-50 ring-4 ring-brand-100" : "border-ink-200 bg-white hover:border-ink-400"}`}>
+                  <span className="num grid h-9 w-9 place-items-center rounded-xl bg-ink-950 text-base font-semibold text-signal">{sym}</span>
+                  <span><span className="block text-sm font-semibold">{n}</span><span className="num text-xs text-ink-500">{c}</span></span>
                 </button>
               ))}
             </div>
-
-            <div className={createInvoiceStyles.statusDropdown}>
-              <select
-                value={invoice.status}
-                onChange={(e) => handleStatusChange(e.target.value)}
-                className="w-full"
-              >
-                <option value="draft">Draft</option>
-                <option value="unpaid">Unpaid</option>
-                <option value="paid">Paid</option>
-                <option value="overdue">Overdue</option>
-              </select>
+          </fieldset>
+          <fieldset>
+            <legend className={labelCls}>Status</legend>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {STATUSES.map((st) => (
+                <button key={st} type="button" onClick={() => handleStatusChange(st)} aria-pressed={invoice.status === st}
+                  className={`rounded-xl border px-3 py-3 text-sm font-semibold capitalize transition ${invoice.status === st ? "border-ink-950 bg-ink-950 text-paper" : "border-ink-200 bg-white text-ink-700 hover:border-ink-400"}`}>{st}</button>
+              ))}
             </div>
-          </div>
+          </fieldset>
         </div>
-      </div>
-      {/* Main Content Grid - left & right columns remain unchanged except they use `invoice` state */}
-      <div className={createInvoiceStyles.mainGrid}>
-        <div className={createInvoiceStyles.leftColumn}>
-          {/* Bill From */}
-          <div className={createInvoiceStyles.cardContainer}>
-            <div className={createInvoiceStyles.cardHeaderWithButton}>
-              <div className={createInvoiceStyles.cardHeaderLeft}>
-                <div
-                  className={`${createInvoiceStyles.cardIconContainer} ${createInvoiceIconColors.billFrom}`}
-                >
-                  <svg
-                    className="w-5 h-5"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                  >
-                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                    <circle cx="12" cy="7" r="4" />
-                  </svg>
-                </div>
-                <h3 className={createInvoiceStyles.cardTitle}>Bill From</h3>
-              </div>
-              {/* Save as Profile button removed */}
-            </div>
+      </Card>
 
-            <div className={createInvoiceStyles.gridCols2}>
-              <div>
-                <label className={createInvoiceStyles.label}>
-                  Business Name
-                </label>
-                <input
-                  value={invoice?.fromBusinessName ?? ""}
-                  onChange={(e) =>
-                    updateInvoiceField("fromBusinessName", e.target.value)
-                  }
-                  placeholder="Your Business Name"
-                  className={createInvoiceStyles.input}
-                />
-              </div>
-              <div>
-                <label className={createInvoiceStyles.label}>Email</label>
-                <input
-                  value={invoice?.fromEmail ?? ""}
-                  onChange={(e) =>
-                    updateInvoiceField("fromEmail", e.target.value)
-                  }
-                  placeholder="business@email.com"
-                  className={createInvoiceStyles.input}
-                />
-              </div>
-              <div className={createInvoiceStyles.gridColSpan2}>
-                <label className={createInvoiceStyles.label}>Address</label>
-                <textarea
-                  value={invoice?.fromAddress ?? ""}
-                  onChange={(e) =>
-                    updateInvoiceField("fromAddress", e.target.value)
-                  }
-                  placeholder="Business Address"
-                  rows={3}
-                  className={createInvoiceStyles.textarea}
-                />
-              </div>
-              <div>
-                <label className={createInvoiceStyles.label}>Phone</label>
-                <input
-                  value={invoice?.fromPhone ?? ""}
-                  onChange={(e) =>
-                    updateInvoiceField("fromPhone", e.target.value)
-                  }
-                  placeholder="+1 (555) 123-4567"
-                  className={createInvoiceStyles.input}
-                />
-              </div>
-              <div>
-                <label className={createInvoiceStyles.label}>Tax ID (EIN/VAT)</label>
-                <input
-                  value={invoice?.fromTaxId ?? invoice?.fromGst ?? ""}
-                  onChange={(e) =>
-                    updateInvoiceField("fromTaxId", e.target.value)
-                  }
-                  placeholder="12-3456789 (US EIN) or GB123456789 (EU VAT)"
-                  className={createInvoiceStyles.input}
-                />
-              </div>
+      <div className="grid gap-6 xl:grid-cols-[1.6fr_1fr]">
+        <div className="space-y-6">
+          <Card className="p-7">
+            <div className="mb-6 flex items-center gap-3"><span className={SECTION_ICON}><Building2 size={19} /></span><h2 className="text-lg font-semibold">Bill from</h2></div>
+            <div className="grid gap-5 sm:grid-cols-2">
+              <div><label className={labelCls} htmlFor="bf-name">Business name</label><input id="bf-name" maxLength={120} className={inputCls} placeholder="Your business name" value={invoice?.fromBusinessName ?? ""} onChange={set("fromBusinessName")} /></div>
+              <div><label className={labelCls} htmlFor="bf-email">Email</label><input id="bf-email" type="email" maxLength={120} className={inputCls} placeholder="billing@business.com" value={invoice?.fromEmail ?? ""} onChange={set("fromEmail")} /></div>
+              <div className="sm:col-span-2"><label className={labelCls} htmlFor="bf-addr">Address</label><textarea id="bf-addr" rows={3} maxLength={300} className={inputCls} placeholder="Street, city, postal code, country" value={invoice?.fromAddress ?? ""} onChange={set("fromAddress")} /></div>
+              <div><label className={labelCls} htmlFor="bf-phone">Phone</label><input id="bf-phone" maxLength={40} className={inputCls} placeholder="+1 555 123 4567" value={invoice?.fromPhone ?? ""} onChange={set("fromPhone")} /></div>
+              <div><label className={labelCls} htmlFor="bf-tax">Tax ID (EIN / VAT)</label><input id="bf-tax" maxLength={40} className={`${inputCls} num`} placeholder="12-3456789 or DE123456789" value={invoice?.fromTaxId ?? invoice?.fromGst ?? ""} onChange={set("fromTaxId")} /></div>
             </div>
-          </div>
+          </Card>
 
-          {/* Bill To */}
-          <div className={createInvoiceStyles.cardContainer}>
-            <div className={createInvoiceStyles.cardHeaderContainer}>
-              <div
-                className={`${createInvoiceStyles.cardIconContainer} ${createInvoiceIconColors.billTo}`}
-              >
-                <svg
-                  className="w-5 h-5"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                >
-                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                  <circle cx="12" cy="7" r="4" />
-                </svg>
-              </div>
-              <h3 className={createInvoiceStyles.cardTitle}>Bill To</h3>
+          <Card className="p-7">
+            <div className="mb-6 flex items-center gap-3"><span className={SECTION_ICON}><UserRound size={19} /></span><h2 className="text-lg font-semibold">Bill to</h2></div>
+            <div className="grid gap-5 sm:grid-cols-2">
+              <div><label className={labelCls} htmlFor="bt-name">Client name</label><input id="bt-name" maxLength={120} className={inputCls} placeholder="Client or company" value={invoice?.client?.name || ""} onChange={cl("name")} /></div>
+              <div><label className={labelCls} htmlFor="bt-email">Client email</label><input id="bt-email" type="email" maxLength={120} className={inputCls} placeholder="client@email.com" value={invoice?.client?.email || ""} onChange={cl("email")} /></div>
+              <div className="sm:col-span-2"><label className={labelCls} htmlFor="bt-addr">Client address</label><textarea id="bt-addr" rows={3} maxLength={300} className={inputCls} value={invoice?.client?.address || ""} onChange={cl("address")} /></div>
+              <div><label className={labelCls} htmlFor="bt-phone">Client phone</label><input id="bt-phone" maxLength={40} className={inputCls} value={invoice?.client?.phone || ""} onChange={cl("phone")} /></div>
             </div>
+          </Card>
 
-            <div className={createInvoiceStyles.gridCols2}>
-              <div>
-                <label className={createInvoiceStyles.label}>Client Name</label>
-                <input
-                  value={invoice?.client?.name || ""}
-                  onChange={(e) => updateClient("name", e.target.value)}
-                  placeholder="Client Name"
-                  className={createInvoiceStyles.input}
-                />
-              </div>
-              <div>
-                <label className={createInvoiceStyles.label}>
-                  Client Email
-                </label>
-                <input
-                  value={invoice?.client?.email || ""}
-                  onChange={(e) => updateClient("email", e.target.value)}
-                  placeholder="client@email.com"
-                  className={createInvoiceStyles.input}
-                />
-              </div>
-              <div className={createInvoiceStyles.gridColSpan2}>
-                <label className={createInvoiceStyles.label}>
-                  Client Address
-                </label>
-                <textarea
-                  value={invoice?.client?.address || ""}
-                  onChange={(e) => updateClient("address", e.target.value)}
-                  placeholder="Client Address"
-                  rows={3}
-                  className={createInvoiceStyles.textarea}
-                />
-              </div>
-              <div>
-                <label className={createInvoiceStyles.label}>
-                  Client Phone
-                </label>
-                <input
-                  value={invoice?.client?.phone || ""}
-                  onChange={(e) => updateClient("phone", e.target.value)}
-                  placeholder="+1 (555) 123-4567"
-                  className={createInvoiceStyles.input}
-                />
-              </div>
+          <Card className="p-7">
+            <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-3"><span className={SECTION_ICON}><ListChecks size={19} /></span><h2 className="text-lg font-semibold">Items &amp; services</h2></div>
+              <span className="num rounded-full bg-ink-100 px-3 py-1 text-xs font-semibold text-ink-600">Amounts in {invoice.currency}</span>
             </div>
-          </div>
-
-          {/* Items */}
-          <div className={createInvoiceStyles.cardContainer}>
-            <div className={createInvoiceStyles.cardHeaderWithButton}>
-              <div className={createInvoiceStyles.cardHeaderLeft}>
-                <div className={createInvoiceStyles.cardIconContainer}>
-                  <svg
-                    className="w-5 h-5"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                  >
-                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-                    <line x1="8" y1="12" x2="16" y2="12" />
-                    <line x1="12" y1="8" x2="12" y2="16" />
-                  </svg>
-                </div>
-                <h3 className={createInvoiceStyles.cardTitle}>
-                  Items & Services
-                </h3>
-              </div>
-              <div className={createInvoiceStyles.currencyBadge}>
-                All amounts in {invoice.currency}
-              </div>
+            <div className="hidden grid-cols-[1fr_90px_130px_130px_40px] gap-3 px-1 pb-2 text-xs font-semibold uppercase tracking-wide text-ink-500 md:grid">
+              <span>Description</span><span>Qty</span><span>Unit price</span><span className="text-right">Total</span><span />
             </div>
-
-            {/* Items list */}
-            <div className={createInvoiceStyles.itemsListWrapper}>
+            <div className="space-y-3">
               {items.map((it, idx) => {
-                const totalValue =
-                  Number(it?.qty || 0) * Number(it?.unitPrice || 0);
-                const totalLabel = currencyFmt(totalValue, invoice.currency);
-
+                const totalLabel = money(Number(it?.qty || 0) * Number(it?.unitPrice || 0));
                 return (
-                  <div
-                    key={it?.id ?? idx}
-                    className={`${createInvoiceStyles.itemsTableRow} ${createInvoiceStyles.itemRow}`}
-                  >
-                    {/* Description */}
-                    <div className={createInvoiceStyles.itemColDescription}>
-                      <label
-                        className={createInvoiceStyles.itemsFieldLabel}
-                        htmlFor={`desc-${idx}`}
-                      >
-                        Description
-                      </label>
-                      <input
-                        id={`desc-${idx}`}
-                        className={createInvoiceStyles.itemsInput}
-                        value={it?.description ?? ""}
-                        onChange={(e) =>
-                          updateItem(idx, "description", e.target.value)
-                        }
-                        placeholder="Item description"
-                        title={it?.description ?? ""}
-                        aria-label={`Item ${idx + 1} description`}
-                      />
-                    </div>
-
-                    {/* Quantity */}
-                    <div className={createInvoiceStyles.itemColQuantity}>
-                      <label
-                        className={createInvoiceStyles.itemsFieldLabel}
-                        htmlFor={`qty-${idx}`}
-                      >
-                        Quantity
-                      </label>
-                      <input
-                        id={`qty-${idx}`}
-                        type="text"
-                        inputMode="numeric"
-                        pattern="[0-9]*"
-                        className={createInvoiceStyles.itemsNumberInput}
-                        value={String(it?.qty ?? "")}
-                        onChange={(e) => updateItem(idx, "qty", e.target.value)}
-                        title={String(it?.qty ?? "")}
-                        aria-label={`Item ${idx + 1} quantity`}
-                      />
-                    </div>
-
-                    {/* Unit Price */}
-                    <div className={createInvoiceStyles.itemColUnitPrice}>
-                      <label
-                        className={createInvoiceStyles.itemsFieldLabel}
-                        htmlFor={`price-${idx}`}
-                      >
-                        Unit Price
-                      </label>
-                      <input
-                        id={`price-${idx}`}
-                        type="text"
-                        inputMode="decimal"
-                        className={createInvoiceStyles.itemsNumberInput}
-                        value={String(it?.unitPrice ?? "")}
-                        onChange={(e) =>
-                          updateItem(idx, "unitPrice", e.target.value)
-                        }
-                        title={String(it?.unitPrice ?? "")}
-                        aria-label={`Item ${idx + 1} unit price`}
-                      />
-                    </div>
-
-                    {/* Total */}
-                    <div className={createInvoiceStyles.itemColTotal}>
-                      <label
-                        className={createInvoiceStyles.itemsFieldLabel}
-                        aria-hidden
-                      >
-                        Total
-                      </label>
-                      <div
-                        className={createInvoiceStyles.itemsTotal}
-                        title={totalLabel}
-                        aria-label={`Item ${idx + 1} total`}
-                      >
-                        {totalLabel}
-                      </div>
-                    </div>
-
-                    {/* Remove */}
-                    <div className={createInvoiceStyles.itemColRemove}>
-                      <button
-                        type="button"
-                        onClick={() => removeItem(idx)}
-                        className={createInvoiceStyles.itemsRemoveButton}
-                        aria-label={`Remove item ${idx + 1}`}
-                        title="Remove item"
-                      >
-                        <DeleteIcon className="w-4 h-4" />
-                      </button>
-                    </div>
+                  <div key={it?.id ?? idx} className="grid gap-3 rounded-2xl border border-ink-200 bg-ink-50/50 p-3 md:grid-cols-[1fr_90px_130px_130px_40px] md:items-center md:border-0 md:bg-transparent md:p-0">
+                    <input aria-label={`Item ${idx + 1} description`} maxLength={500} className={inputCls} placeholder="Item description" value={it?.description ?? ""} onChange={(e) => updateItem(idx, "description", e.target.value)} />
+                    <input aria-label={`Item ${idx + 1} quantity`} inputMode="numeric" pattern="[0-9]*" className={`${inputCls} num`} value={String(it?.qty ?? "")} onChange={(e) => updateItem(idx, "qty", e.target.value)} />
+                    <input aria-label={`Item ${idx + 1} unit price`} inputMode="decimal" className={`${inputCls} num`} value={String(it?.unitPrice ?? "")} onChange={(e) => updateItem(idx, "unitPrice", e.target.value)} />
+                    <div className="num text-right text-sm font-semibold" aria-label={`Item ${idx + 1} total`}>{totalLabel}</div>
+                    <button type="button" onClick={() => removeItem(idx)} aria-label={`Remove item ${idx + 1}`} className="grid h-10 w-10 place-items-center justify-self-end rounded-full text-rose-600 transition hover:bg-rose-50"><Trash2 size={16} /></button>
                   </div>
                 );
               })}
             </div>
-
+            <button type="button" onClick={addItem} className="mt-5 inline-flex items-center gap-2 rounded-full border border-dashed border-ink-300 px-5 py-2.5 text-sm font-semibold text-ink-700 transition hover:border-brand-600 hover:bg-brand-50 hover:text-brand-700"><Plus size={16} /> Add item</button>
             <div className="mt-6">
-              <button
-                onClick={addItem}
-                className={createInvoiceStyles.addItemButton}
-              >
-                <AddIcon
-                  className={`w-4 h-4 ${createInvoiceStyles.iconHover}`}
-                />{" "}
-                Add Item
-              </button>
+              <label className={labelCls} htmlFor="ci-notes">Notes</label>
+              <textarea id="ci-notes" rows={3} maxLength={2000} className={inputCls} placeholder="Payment terms, bank details, thank-you note..." value={invoice?.notes || ""} onChange={set("notes")} />
             </div>
-          </div>
+          </Card>
         </div>
 
-        {/* Right Column */}
-        <div className={createInvoiceStyles.rightColumn}>
-          {/* Logo & Branding */}
-          <div className={createInvoiceStyles.cardSmallContainer}>
-            <h3 className={createInvoiceStyles.cardSubtitle}>Branding</h3>
-
-            <div className="space-y-4">
-              <div>
-                <label className={createInvoiceStyles.label}>
-                  Company Logo
-                </label>
-                <div className={createInvoiceStyles.uploadSmallArea}>
-                  {invoice?.logoDataUrl ? (
-                    <div className={createInvoiceStyles.imagePreviewContainer}>
-                      <div className={createInvoiceStyles.logoPreview}>
-                        <img
-                          src={invoice.logoDataUrl}
-                          alt="logo"
-                          className="object-contain w-full h-full"
-                          onError={(e) => {
-                            e.currentTarget.style.display = "none";
-                            console.warn(
-                              "[CreateInvoice] failed to load logo preview:",
-                              invoice.logoDataUrl
-                            );
-                          }}
-                        />
-                      </div>
-                      <div className={createInvoiceStyles.buttonGroup}>
-                        <label className={createInvoiceStyles.changeButton}>
-                          <UploadIcon className="w-4 h-4" /> Change
-                          <input
-                            type="file"
-                            accept="image/*"
-                            onChange={(e) =>
-                              handleImageUpload(
-                                e.target.files && e.target.files[0],
-                                "logo"
-                              )
-                            }
-                            className="hidden"
-                          />
-                        </label>
-                        <button
-                          onClick={() => removeImage("logo")}
-                          className={createInvoiceStyles.removeButton}
-                        >
-                          <DeleteIcon className="w-4 h-4" /> Remove
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <label className="cursor-pointer block">
-                      <div
-                        className={`${createInvoiceStyles.imagePreviewContainer} ${createInvoiceStyles.hoverScale}`}
-                      >
-                        <div
-                          className={createInvoiceStyles.uploadIconContainer}
-                        >
-                          <UploadIcon className="w-5 h-5" />
-                        </div>
-                        <div>
-                          <p className={createInvoiceStyles.uploadTextTitle}>
-                            Upload Logo
-                          </p>
-                          <p className={createInvoiceStyles.uploadTextSubtitle}>
-                            PNG, JPG up to 5MB
-                          </p>
-                        </div>
-                        <input
-                          type="file"
-                          accept="image/*"
-                          onChange={(e) =>
-                            handleImageUpload(
-                              e.target.files && e.target.files[0],
-                              "logo"
-                            )
-                          }
-                          className="hidden"
-                        />
-                      </div>
-                    </label>
-                  )}
+        <div className="space-y-6 xl:sticky xl:top-24 xl:self-start">
+          <Card className="overflow-hidden">
+            <div className="p-7">
+              <h2 className="mb-5 text-lg font-semibold">Summary</h2>
+              <div className="space-y-3 text-sm">
+                <div className="flex justify-between text-ink-600"><span>Subtotal</span><span className="num font-medium text-ink-900">{money(totals.subtotal)}</span></div>
+                <div className="flex items-center justify-between gap-4 text-ink-600">
+                  <label htmlFor="ci-tax">Tax (%)</label>
+                  <input id="ci-tax" type="number" min="0" max="100" step="0.1" className={`${inputCls} num w-24 text-right`} value={invoice.taxPercent ?? 0} onChange={(e) => updateInvoiceField("taxPercent", Math.min(100, Math.max(0, Number(e.target.value || 0))))} />
                 </div>
+                <div className="flex justify-between text-ink-600"><span>Tax amount</span><span className="num font-medium text-ink-900">{money(totals.tax)}</span></div>
               </div>
             </div>
-          </div>
-
-          {/* Summary & Tax */}
-          <div className={createInvoiceStyles.cardSmallContainer}>
-            <h3 className={createInvoiceStyles.cardSubtitle}>Summary & Tax</h3>
-            <div className="space-y-4">
-              <div className={createInvoiceStyles.summaryRow}>
-                <div className={createInvoiceStyles.summaryLabel}>Subtotal</div>
-                <div className={createInvoiceStyles.summaryValue}>
-                  {currencyFmt(totals.subtotal, invoice.currency)}
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <div>
-                  <label className={createInvoiceStyles.label}>
-                    Tax Percentage
-                  </label>
-                  <input
-                    type="number"
-                    value={invoice.taxPercent ?? 18}
-                    onChange={(e) =>
-                      updateInvoiceField(
-                        "taxPercent",
-                        Number(e.target.value || 0)
-                      )
-                    }
-                    className={createInvoiceStyles.inputCenter}
-                    min="0"
-                    max="100"
-                    step="0.1"
-                  />
-                </div>
-
-                <div className={createInvoiceStyles.taxRow}>
-                  <div className="text-sm text-gray-600">Tax Amount</div>
-                  <div className="font-medium text-gray-900">
-                    {currencyFmt(totals.tax, invoice.currency)}
-                  </div>
-                </div>
-              </div>
-
-              <div className={createInvoiceStyles.totalRow}>
-                <div className={createInvoiceStyles.totalLabel}>Total</div>
-                <div className={createInvoiceStyles.totalValue}>
-                  {currencyFmt(totals.total, invoice.currency)}
-                </div>
-              </div>
+            <div className="flex items-center justify-between bg-ink-950 px-7 py-5 text-paper">
+              <span className="font-medium">Total due</span>
+              <span className="num text-2xl font-semibold text-signal">{money(totals.total)}</span>
             </div>
-          </div>
+          </Card>
 
-          {/* Stamp & Signature */}
-          <div className={createInvoiceStyles.cardSmallContainer}>
-            <h3 className={createInvoiceStyles.cardSubtitle}>
-              Stamp & Signature
-            </h3>
-
-            <div className="space-y-6">
-              {/* Stamp */}
-              <div>
-                <label className={createInvoiceStyles.label}>
-                  Digital Stamp
-                </label>
-                <div className={createInvoiceStyles.uploadSmallArea}>
-                  {invoice.stampDataUrl ? (
-                    <div className={createInvoiceStyles.imagePreviewContainer}>
-                      <div className={createInvoiceStyles.stampPreview}>
-                        <img
-                          src={invoice.stampDataUrl}
-                          alt="stamp"
-                          className="object-contain w-full h-full"
-                          onError={(e) => {
-                            e.currentTarget.style.display = "none";
-                            console.warn(
-                              "[CreateInvoice] failed to load stamp preview:",
-                              invoice.stampDataUrl
-                            );
-                          }}
-                        />
-                      </div>
-                      <div className={createInvoiceStyles.buttonGroup}>
-                        <label className={createInvoiceStyles.changeButton}>
-                          <UploadIcon className="w-4 h-4" /> Change
-                          <input
-                            type="file"
-                            accept="image/*"
-                            onChange={(e) =>
-                              handleImageUpload(
-                                e.target.files && e.target.files[0],
-                                "stamp"
-                              )
-                            }
-                            className="hidden"
-                          />
-                        </label>
-                        <button
-                          onClick={() => removeImage("stamp")}
-                          className={createInvoiceStyles.removeButton}
-                        >
-                          <DeleteIcon className="w-4 h-4" /> Remove
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <label className="cursor-pointer block">
-                      <div
-                        className={`${createInvoiceStyles.imagePreviewContainer} ${createInvoiceStyles.hoverScale}`}
-                      >
-                        <div
-                          className={
-                            createInvoiceStyles.uploadSmallIconContainer
-                          }
-                        >
-                          <UploadIcon className="w-4 h-4" />
-                        </div>
-                        <div>
-                          <p className={createInvoiceStyles.uploadTextTitle}>
-                            Upload Stamp
-                          </p>
-                          <p className={createInvoiceStyles.uploadTextSubtitle}>
-                            PNG with transparency
-                          </p>
-                        </div>
-                        <input
-                          type="file"
-                          accept="image/*"
-                          onChange={(e) =>
-                            handleImageUpload(
-                              e.target.files && e.target.files[0],
-                              "stamp"
-                            )
-                          }
-                          className="hidden"
-                        />
-                      </div>
-                    </label>
-                  )}
-                </div>
-              </div>
-
-              {/* Signature */}
-              <div>
-                <label className={createInvoiceStyles.label}>
-                  Digital Signature
-                </label>
-                <div className={createInvoiceStyles.uploadSmallArea}>
-                  {invoice.signatureDataUrl ? (
-                    <div className={createInvoiceStyles.imagePreviewContainer}>
-                      <div className={createInvoiceStyles.signaturePreview}>
-                        <img
-                          src={invoice.signatureDataUrl}
-                          alt="signature"
-                          className="object-contain w-full h-full"
-                          onError={(e) => {
-                            e.currentTarget.style.display = "none";
-                            console.warn(
-                              "[CreateInvoice] failed to load signature preview:",
-                              invoice.signatureDataUrl
-                            );
-                          }}
-                        />
-                      </div>
-                      <div className={createInvoiceStyles.buttonGroup}>
-                        <label className={createInvoiceStyles.changeButton}>
-                          <UploadIcon className="w-4 h-4" /> Change
-                          <input
-                            type="file"
-                            accept="image/*"
-                            onChange={(e) =>
-                              handleImageUpload(
-                                e.target.files && e.target.files[0],
-                                "signature"
-                              )
-                            }
-                            className="hidden"
-                          />
-                        </label>
-                        <button
-                          onClick={() => removeImage("signature")}
-                          className={createInvoiceStyles.removeButton}
-                        >
-                          <DeleteIcon className="w-4 h-4" /> Remove
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <label className="cursor-pointer block">
-                      <div
-                        className={`${createInvoiceStyles.imagePreviewContainer} ${createInvoiceStyles.hoverScale}`}
-                      >
-                        <div
-                          className={
-                            createInvoiceStyles.uploadSmallIconContainer
-                          }
-                        >
-                          <UploadIcon className="w-4 h-4" />
-                        </div>
-                        <div>
-                          <p className={createInvoiceStyles.uploadTextTitle}>
-                            Upload Signature
-                          </p>
-                          <p className={createInvoiceStyles.uploadTextSubtitle}>
-                            PNG with transparency
-                          </p>
-                        </div>
-                        <input
-                          type="file"
-                          accept="image/*"
-                          onChange={(e) =>
-                            handleImageUpload(
-                              e.target.files && e.target.files[0],
-                              "signature"
-                            )
-                          }
-                          className="hidden"
-                        />
-                      </div>
-                    </label>
-                  )}
-                </div>
-
-                {/* Signature Details */}
-                <div className="mt-4 space-y-3">
-                  <div>
-                    <label className={createInvoiceStyles.label}>
-                      Signature Owner Name
-                    </label>
-                    <input
-                      placeholder="John Doe"
-                      value={invoice.signatureName || ""}
-                      onChange={(e) =>
-                        updateInvoiceField("signatureName", e.target.value)
-                      }
-                      className={`${createInvoiceStyles.inputSmall} ${createInvoiceCustomStyles.inputPlaceholder}`}
-                    />
-                  </div>
-                  <div>
-                    <label className={createInvoiceStyles.label}>
-                      Signature Title / Designation
-                    </label>
-                    <input
-                      placeholder="Director / CEO"
-                      value={invoice.signatureTitle || ""}
-                      onChange={(e) =>
-                        updateInvoiceField("signatureTitle", e.target.value)
-                      }
-                      className={`${createInvoiceStyles.inputSmall} ${createInvoiceCustomStyles.inputPlaceholder}`}
-                    />
-                  </div>
-                </div>
-              </div>
+          <Card className="space-y-4 p-7">
+            <h2 className="text-lg font-semibold">Branding</h2>
+            <ImageSlot kind="logo" label="Company logo" hint="PNG, JPG or WEBP" Icon={ImageIcon} />
+            <ImageSlot kind="stamp" label="Stamp" hint="PNG with transparency works best" Icon={Stamp} />
+            <ImageSlot kind="signature" label="Signature" hint="PNG with transparency works best" Icon={PenLine} />
+            <div className="grid gap-4 pt-2">
+              <div><label className={labelCls} htmlFor="sg-name">Signatory name</label><input id="sg-name" maxLength={100} className={inputCls} placeholder="Jane Cooper" value={invoice.signatureName || ""} onChange={set("signatureName")} /></div>
+              <div><label className={labelCls} htmlFor="sg-title">Title</label><input id="sg-title" maxLength={100} className={inputCls} placeholder="Director / CEO" value={invoice.signatureTitle || ""} onChange={set("signatureTitle")} /></div>
             </div>
-          </div>
+          </Card>
         </div>
-      </div>{" "}
-      {/* end main grid */}
+      </div>
     </div>
   );
 }

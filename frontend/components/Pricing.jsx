@@ -1,361 +1,48 @@
 "use client";
 
-import React, { useState } from 'react'
-import { useRouter } from 'next/navigation';
-import { pricingStyles, pricingCardStyles } from '@/assets/dummyStyles';
-import { SignedIn, SignedOut, useAuth } from '@/context/AuthContext';
+import React from "react";
+import Link from "next/link";
+import { Check } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
 
-const PricingCard = ({
-   title,
-  price,
-  period,
-  description,
-  features = [],
-  isPopular = false,
-  isAnnual = false,
-  delay = 0,
-  onCtaClick,
+const plans = [
+  { name: "Starter", price: "Free", note: "Freelancers & solo founders", features: ["Up to 5 invoices / month", "1 business profile", "USD & EUR"], cta: "Start free" },
+  { name: "Professional", price: "$15", per: "/mo", note: "Growing small businesses", features: ["Unlimited invoices", "AI generation", "Branded templates", "Dashboard analytics"], cta: "Go Professional", popular: true },
+  { name: "Business", price: "$39", per: "/mo", note: "Agencies & multi-client teams", features: ["Multiple business profiles", "Team seats", "Priority support", "Advanced reporting"], cta: "Go Business" },
+  { name: "Enterprise", price: "Custom", note: "High-volume organisations", features: ["API access", "Custom integrations", "SLA", "Dedicated onboarding"], cta: "Contact sales" },
+];
 
-}) => (
-   <div className={`${pricingCardStyles.card} ${
-     isPopular ? pricingCardStyles.cardPopular : pricingCardStyles.cardRegular
-   }`} style={{transitionDelay: `${delay}ms`}}
-   >
-    {isPopular && (
-        <div className={pricingCardStyles.popularBadge}>
-         <div className={pricingCardStyles.popularBadgeContent}>
-            Most Popular
-         </div>
-        </div>
-    )}
-    {isPopular && <div className={pricingCardStyles.gradientOverlay}/>}
-    <div className={pricingCardStyles.animatedBorder}></div>
-
-    <div className={pricingCardStyles.content}>
-     <div className={pricingCardStyles.header}>
-       <h3 className={`${pricingCardStyles.title} ${
-         isPopular ? pricingCardStyles.titlePopular : pricingCardStyles.titleRegular
-       }`}
-       >
-       {title}
-       </h3>
-       <p className={pricingCardStyles.description}>{description}</p>
-     </div>
-     <div className={pricingCardStyles.priceContainer}>
-        <div className={pricingCardStyles.priceWrapper}>
-         <span className={`${pricingCardStyles.price}${
-            isPopular ? pricingCardStyles.pricePopular : pricingCardStyles.priceRegular
-         }`}
-         >
-          {price}
-         </span>
-         {period && (
-            <span className={pricingCardStyles.period}>/{period}</span>
-         )}
-        </div>
-        {isAnnual && (
-            <div className={pricingCardStyles.annualBadge}>Save 20% annually</div>
-        )}
-     </div>
-     <ul className={pricingCardStyles.featuresList}>
-        {features.map((feature, index) => (
-          <li key={index} className={pricingCardStyles.featureItem}>
-            <div
-              className={`
-                ${pricingCardStyles.featureIcon}
-                ${
-                  isPopular
-                    ? pricingCardStyles.featureIconPopular
-                    : pricingCardStyles.featureIconRegular
-                }
-              `}
-            >
-              <svg
-                className="w-3 h-3"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={3}
-                  d="M5 13l4 4L19 7"
-                />
-              </svg>
-            </div>
-            <span className={pricingCardStyles.featureText}>{feature}</span>
-          </li>
-        ))}
-      </ul>
-
-      {/* CTA area: show different button/label depending on auth state */}
-      <div style={{ marginTop: 12 }}>
-        <SignedIn>
-          <button
-            type="button"
-            onClick={() =>
-              onCtaClick && onCtaClick({ title, isPopular, isAnnual })
-            }
-            className={`
-              ${pricingCardStyles.ctaButton}
-              ${
-                isPopular
-                  ? pricingCardStyles.ctaButtonPopular
-                  : pricingCardStyles.ctaButtonRegular
-              }
-            `}
-          >
-            <span
-              className={`
-                ${pricingCardStyles.ctaButtonText}
-                ${
-                  isPopular
-                    ? pricingCardStyles.ctaButtonTextPopular
-                    : pricingCardStyles.ctaButtonTextRegular
-                }
-              `}
-            >
-              {isPopular ? "Get Started" : "Choose Plan"}
-            </span>
-          </button>
-        </SignedIn>
-
-        <SignedOut>
-          <button
-            type="button"
-            onClick={() =>
-              onCtaClick &&
-              onCtaClick(
-                { title, isPopular, isAnnual },
-                { openSignInFallback: true }
-              )
-            }
-            className={`
-              ${pricingCardStyles.ctaButton}
-              ${pricingCardStyles.ctaButtonRegular}
-            `}
-          >
-            <span className={pricingCardStyles.ctaButtonText}>
-              Sign in to get started
-            </span>
-          </button>
-        </SignedOut>
-      </div>
-    </div>
-
-{isPopular && (
-    <>
-     <div className={pricingCardStyles.cornerAccent1}></div>
-     <div className={pricingCardStyles.cornerAccent2}></div>
-    </>
-)}
-    </div>
-
-)
-
-const Pricing = () => {
-    const [billingPeriod , setBillingPeriod] = useState("monthly");
-    const {isSignedIn} = useAuth();
-    const router = useRouter();
-
-     const plans = {
-    monthly: [
-      {
-        title: "Starter",
-        price: "$0",
-        period: "month",
-        description: "Perfect for freelancers and small projects",
-        features: [
-          "5 invoices per month",
-          "Basic AI parsing",
-          "Standard templates",
-          "Email support",
-          "PDF export",
-        ],
-        isPopular: false,
-        priceId: null, // Free plan - no Stripe price ID needed
-      },
-      {
-        title: "Professional",
-        price: "$29",
-        period: "month",
-        description: "For growing businesses and agencies",
-        features: [
-          "Unlimited invoices",
-          "Advanced AI parsing",
-          "Custom branding",
-          "Priority support",
-          "Advanced analytics",
-          "Team collaboration (3 members)",
-          "API access",
-        ],
-        isPopular: true,
-        priceId: "price_professional_monthly", // Replace with your Stripe Price ID
-      },
-      {
-        title: "Enterprise",
-        price: "$99",
-        period: "month",
-        description: "For large organizations with custom needs",
-        features: [
-          "Everything in Professional",
-          "Unlimited team members",
-          "Custom workflows",
-          "Dedicated account manager",
-          "SLA guarantee",
-          "White-label solutions",
-          "Advanced security",
-        ],
-        isPopular: false,
-        priceId: "price_enterprise_monthly", // Replace with your Stripe Price ID
-      },
-    ],
-    annual: [
-      {
-        title: "Starter",
-        price: "$0",
-        period: "month",
-        description: "Perfect for freelancers and small projects",
-        features: [
-          "5 invoices per month",
-          "Basic AI parsing",
-          "Standard templates",
-          "Email support",
-          "PDF export",
-        ],
-        isPopular: false,
-        isAnnual: false,
-        priceId: null,
-      },
-      {
-        title: "Professional",
-        price: "$24",
-        period: "month",
-        description: "For growing businesses and agencies",
-        features: [
-          "Unlimited invoices",
-          "Advanced AI parsing",
-          "Custom branding",
-          "Priority support",
-          "Advanced analytics",
-          "Team collaboration (3 members)",
-          "API access",
-        ],
-        isPopular: true,
-        isAnnual: true,
-        priceId: "price_professional_annual", // Replace with your Stripe Price ID
-      },
-      {
-        title: "Enterprise",
-        price: "$79",
-        period: "month",
-        description: "For large organizations with custom needs",
-        features: [
-          "Everything in Professional",
-          "Unlimited team members",
-          "Custom workflows",
-          "Dedicated account manager",
-          "SLA guarantee",
-          "White-label solutions",
-          "Advanced security",
-        ],
-        isPopular: false,
-        isAnnual: true,
-        priceId: "price_enterprise_annual", // Replace with your Stripe Price ID
-      },
-    ],
-  };
-   const currentPlans = plans[billingPeriod];
-
-   function handleCtaClick (planMeta , flags = {}) {
-    if(flags.openSignInFallback || !isSignedIn){
-       router.push(`/login?from=${encodeURIComponent("/app/create-invoice")}`);
-       return;
-    }
-    router.push("/app/create-invoice");
-   }
-
+export default function Pricing() {
+  const { isSignedIn } = useAuth();
+  const href = isSignedIn ? "/app/dashboard" : "/signup";
   return (
-    <section id='pricing' className={pricingStyles.section}>
-    <div className={pricingStyles.bgElement1}></div>
-     <div className={pricingStyles.bgElement2}></div>
-      <div className={pricingStyles.bgElement3}></div>
-
-      <div className={pricingStyles.container}>
-        <div className={pricingStyles.headerContainer}>
-         <div className={pricingStyles.badge}>
-            <span className={pricingStyles.badgeDot}></span>
-            <span className={pricingStyles.badgeText}>Transparent Pricing</span>
-         </div>
-
-         <h2 className={pricingStyles.title}>
-             Simple,{""}
-             <span className={pricingStyles.titleGradient}>Fair Pricing</span>
-         </h2>
-         <p className={pricingStyles.description}>
-          Start free, upgrade as you grow.No hidden fees, no surprices charges.
-         </p>
-         <div style={{marginTop: 12}} className={pricingStyles.billingToggle}>
-           <button onClick={()=> setBillingPeriod("monthly")}
-            className={`${pricingStyles.billingButton} ${
-                billingPeriod === "monthly" ? pricingStyles.billingButtonActive
-                : pricingStyles.billingButtonInactive
-            }`}
-            >
-             Monthly
-           </button>
-
-           <button onClick={()=> setBillingPeriod("annual")}
-            className={`${pricingStyles.billingButton} ${
-                billingPeriod === "annual" ? pricingStyles.billingButtonActive
-                : pricingStyles.billingButtonInactive
-            }`}
-            >
-             Annual
-             <span className={pricingStyles.billingBadge}>Save 20%</span>
-           </button>
-         </div>
+    <section id="pricing" className="border-t border-ink-200 bg-ink-50/60 py-24 lg:py-32">
+      <div className="mx-auto max-w-7xl px-5 lg:px-8">
+        <div className="mx-auto max-w-2xl text-center">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-brand-700">Pricing</p>
+          <h2 className="font-display-tight mt-3 text-4xl font-semibold sm:text-5xl">Simple pricing that scales with you.</h2>
+          <p className="mt-4 text-ink-600">Start free. Upgrade when your business grows.</p>
         </div>
-
-        <div className={pricingStyles.grid}>
-        {currentPlans.map((plan, index)=>(
-            <PricingCard key={plan.title} {...plan} delay={index * 100} onCtaClick={handleCtaClick} />
-        ))}
-        </div>
-        <div className={pricingStyles.additionalInfo}>
-         <div className={pricingStyles.featuresCard}>
-            <h3 className={pricingStyles.featuresTitle}>All plans include</h3>
-            <div className={pricingStyles.featuresGrid}>
-                 {[
-                "Secure cloud storage",
-                "Mobile-friendly interface",
-                "Automatic backups",
-                "Real-time notifications",
-                "Multi-currency support",
-                "Tax calculation",
-              ].map((feature, index) => (
-                 <div key={index} className={pricingStyles.featureItem}>
-                    <div className={pricingStyles.featureDot}></div>
-                    <span>{feature}</span>
-                 </div>
-              ))}
-
+        <div className="mt-14 grid gap-5 md:grid-cols-2 xl:grid-cols-4">
+          {plans.map((p) => (
+            <div key={p.name} className={`relative flex flex-col rounded-3xl p-8 transition ${p.popular ? "bg-ink-950 text-paper shadow-3xl xl:-translate-y-3" : "border border-ink-200 bg-white shadow-card"}`}>
+              {p.popular && <span className="absolute -top-3 left-8 rounded-full bg-signal px-3 py-1 text-xs font-bold text-ink-950">Most popular</span>}
+              <h3 className="text-lg font-semibold">{p.name}</h3>
+              <p className={`mt-1 text-sm ${p.popular ? "text-ink-300" : "text-ink-500"}`}>{p.note}</p>
+              <div className="mt-6 flex items-baseline gap-1">
+                <span className="font-display-tight text-5xl font-semibold">{p.price}</span>
+                {p.per && <span className={p.popular ? "text-ink-300" : "text-ink-500"}>{p.per}</span>}
+              </div>
+              <ul className="mt-7 flex-1 space-y-3 text-sm">
+                {p.features.map((f) => (
+                  <li key={f} className="flex items-start gap-2.5"><Check size={17} className={`mt-0.5 shrink-0 ${p.popular ? "text-signal" : "text-brand-600"}`} />{f}</li>
+                ))}
+              </ul>
+              <Link href={href} className={`mt-8 rounded-full py-3.5 text-center text-sm font-semibold transition ${p.popular ? "bg-signal text-ink-950 hover:bg-white" : "bg-ink-950 text-paper hover:bg-brand-700"}`}>{p.cta}</Link>
             </div>
-         </div>
-        </div>
-
-        <div className={pricingStyles.faqCta}>
-         <p className={pricingStyles.faqText}>
-           Have  questions about pricing? {""}
-           <button className={pricingStyles.contactLink}>
-              Contact our sales team ➜
-           </button>
-         </p>
+          ))}
         </div>
       </div>
     </section>
-  )
+  );
 }
-
-export default Pricing

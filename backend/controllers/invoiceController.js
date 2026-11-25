@@ -2,7 +2,21 @@ import mongoose from "mongoose";
 import Invoice from "../models/invoiceModel.js";
 import path from "path";
 
-const API_BASE = (process.env.BACKEND_URL || "http://localhost:4000").replace(/\/+$/, "");
+import { env } from "../config/env.js";
+import { str, escapeRegex } from "../utils/sanitize.js";
+
+const API_BASE = env.publicApiUrl;
+const STATUSES = ["draft", "unpaid", "paid", "overdue"];
+const CURRENCIES = ["USD", "EUR", "GBP", "CAD", "AUD", "CHF", "SEK", "NOK", "DKK", "PLN", "JPY", "INR", "BDT"];
+const cleanStatus = (v, d = "draft") => (STATUSES.includes(String(v).toLowerCase()) ? String(v).toLowerCase() : d);
+const cleanCurrency = (v, d = "USD") => (CURRENCIES.includes(String(v).toUpperCase()) ? String(v).toUpperCase() : d);
+const cleanTax = (v) => Math.min(100, Math.max(0, Number.isFinite(Number(v)) ? Number(v) : 0));
+const cleanDate = (v, d = "") => (/^\d{4}-\d{2}-\d{2}$/.test(String(v ?? "")) ? String(v) : d);
+// Assets: only our own upload URLs or small inline PNG/JPEG/WEBP data URLs (no javascript:/svg).
+const cleanAsset = (v) =>
+  typeof v === "string" &&
+  (v.startsWith(`${API_BASE}/uploads/`) || (v.length < 700_000 && /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(v)))
+    ? v : null;
 
 function computeTotals(items = [], taxPercent = 0) {
   const safe = Array.isArray(items) ? items.filter(Boolean) : [];
@@ -13,7 +27,8 @@ function computeTotals(items = [], taxPercent = 0) {
   );
   const tax = (subtotal * Number(taxPercent || 0)) / 100;
   const total = subtotal + tax;
-  return { subtotal, tax, total };
+  const r = (n) => Math.round((n + Number.EPSILON) * 100) / 100;
+  return { subtotal: r(subtotal), tax: r(tax), total: r(subtotal + tax) };
 }
 
 function parseItemField(val) {
@@ -63,24 +78,22 @@ function uploadedFilesToUrls(req) {
 }
 
 function sanitizeItems(rawItems) {
-  const items = Array.isArray(rawItems) ? rawItems : [];
+  const items = Array.isArray(rawItems) ? rawItems.slice(0, 100) : [];
 
   return items
     .map((item, index) => ({
-      id: item?.id ? String(item.id) : String(index + 1),
+      id: String(index + 1),
       description:
-        typeof item?.description === "string"
-          ? item.description.trim()
-          : "",
+        str(item?.description, 500),
       qty: Number(item?.qty ?? 1),
       unitPrice: Number(item?.unitPrice ?? 0),
     }))
     .filter((item) => item.description.length > 0)
     .map((item) => ({
       ...item,
-      qty: Number.isFinite(item.qty) && item.qty > 0 ? item.qty : 1,
+      qty: Number.isFinite(item.qty) && item.qty > 0 && item.qty < 1e7 ? item.qty : 1,
       unitPrice:
-        Number.isFinite(item.unitPrice) && item.unitPrice >= 0
+        Number.isFinite(item.unitPrice) && item.unitPrice >= 0 && item.unitPrice < 1e9
           ? item.unitPrice
           : 0,
     }));
@@ -89,7 +102,7 @@ function sanitizeItems(rawItems) {
 function normalizeClient(clientValue) {
   if (typeof clientValue === "string" && clientValue.trim()) {
     return {
-      name: clientValue.trim(),
+      name: str(clientValue, 120),
       email: "",
       address: "",
       phone: "",
@@ -98,10 +111,10 @@ function normalizeClient(clientValue) {
 
   if (clientValue && typeof clientValue === "object") {
     return {
-      name: clientValue.name ? String(clientValue.name).trim() : "",
-      email: clientValue.email ? String(clientValue.email).trim() : "",
-      address: clientValue.address ? String(clientValue.address).trim() : "",
-      phone: clientValue.phone ? String(clientValue.phone).trim() : "",
+      name: str(clientValue.name, 120),
+      email: str(clientValue.email, 120),
+      address: str(clientValue.address, 300),
+      phone: str(clientValue.phone, 40),
     };
   }
 
@@ -156,20 +169,19 @@ export async function createInvoice(req, res) {
       });
     }
 
-    const taxPercent = Number(
-      body.taxPercent ?? body.tax ?? body.defaultTaxPercent ?? 0
-    );
+    const taxPercent = cleanTax(body.taxPercent ?? body.tax ?? body.defaultTaxPercent ?? 0);
 
     const totals = computeTotals(items, taxPercent);
     const fileUrls = uploadedFilesToUrls(req);
 
     const invoiceNumberProvided =
       typeof body.invoiceNumber === "string" && body.invoiceNumber.trim()
-        ? String(body.invoiceNumber).trim()
+        ? str(body.invoiceNumber, 40)
         : null;
 
     if (invoiceNumberProvided) {
       const duplicate = await Invoice.exists({
+        owner: userId,
         invoiceNumber: invoiceNumberProvided,
       });
 
@@ -188,33 +200,30 @@ export async function createInvoice(req, res) {
       _id: new mongoose.Types.ObjectId(),
       owner: userId,
       invoiceNumber,
-      issueDate: body.issueDate || new Date().toISOString().slice(0, 10),
-      dueDate: body.dueDate || "",
-      fromBusinessName: body.fromBusinessName || "",
-      fromEmail: body.fromEmail || "",
-      fromAddress: body.fromAddress || "",
-      fromPhone: body.fromPhone || "",
-      fromTaxId: body.fromTaxId || body.fromGst || "", // Support legacy GST field
+      issueDate: cleanDate(body.issueDate, new Date().toISOString().slice(0, 10)),
+      dueDate: cleanDate(body.dueDate),
+      fromBusinessName: str(body.fromBusinessName, 120),
+      fromEmail: str(body.fromEmail, 120),
+      fromAddress: str(body.fromAddress, 300),
+      fromPhone: str(body.fromPhone, 40),
+      fromTaxId: str(body.fromTaxId || body.fromGst, 40),
       client: normalizeClient(body.client),
       items,
       subtotal: totals.subtotal,
       tax: totals.tax,
       total: totals.total,
-      currency: body.currency || "USD",
-      status: body.status ? String(body.status).toLowerCase() : "draft",
+      currency: cleanCurrency(body.currency),
+      status: cleanStatus(body.status),
       taxPercent,
       logoDataUrl:
-        fileUrls.logoDataUrl || body.logoDataUrl || body.logo || null,
+        fileUrls.logoDataUrl || cleanAsset(body.logoDataUrl || body.logo),
       stampDataUrl:
-        fileUrls.stampDataUrl || body.stampDataUrl || body.stamp || null,
+        fileUrls.stampDataUrl || cleanAsset(body.stampDataUrl || body.stamp),
       signatureDataUrl:
-        fileUrls.signatureDataUrl ||
-        body.signatureDataUrl ||
-        body.signature ||
-        null,
-      signatureName: body.signatureName || "",
-      signatureTitle: body.signatureTitle || "",
-      notes: body.notes || body.aiSource || "",
+        fileUrls.signatureDataUrl || cleanAsset(body.signatureDataUrl || body.signature),
+      signatureName: str(body.signatureName, 100),
+      signatureTitle: str(body.signatureTitle, 100),
+      notes: str(body.notes || body.aiSource, 2000),
     });
 
     let saved = null;
@@ -256,7 +265,6 @@ export async function createInvoice(req, res) {
     return res.status(500).json({
       success: false,
       message: "Server error",
-      detail: err?.message || String(err),
     });
   }
 }
@@ -274,11 +282,11 @@ export async function getInvoices(req, res) {
 
     const q = { owner: userId };
 
-    if (req.query.status) q.status = req.query.status;
-    if (req.query.invoiceNumber) q.invoiceNumber = req.query.invoiceNumber;
+    if (typeof req.query.status === "string" && STATUSES.includes(req.query.status)) q.status = req.query.status;
+    if (typeof req.query.invoiceNumber === "string") q.invoiceNumber = str(req.query.invoiceNumber, 40);
 
-    if (req.query.search) {
-      const search = req.query.search.trim();
+    if (typeof req.query.search === "string" && req.query.search.trim()) {
+      const search = escapeRegex(str(req.query.search, 80));
       q.$or = [
         { fromEmail: { $regex: search, $options: "i" } },
         { "client.email": { $regex: search, $options: "i" } },
@@ -287,7 +295,7 @@ export async function getInvoices(req, res) {
       ];
     }
 
-    const invoices = await Invoice.find(q).sort({ createdAt: -1 }).lean();
+    const invoices = await Invoice.find(q).sort({ createdAt: -1 }).limit(1000).lean();
 
     return res.status(200).json({
       success: true,
@@ -315,9 +323,9 @@ export async function getInvoiceById(req, res) {
 
     const { id } = req.params;
 
-    let inv;
-    if (isObjectIdString(id)) inv = await Invoice.findById(id);
-    else inv = await Invoice.findOne({ invoiceNumber: id });
+    const inv = await Invoice.findOne(
+      isObjectIdString(id) ? { _id: id, owner: userId } : { invoiceNumber: str(id, 40), owner: userId }
+    );
 
     if (!inv) {
       return res.status(404).json({
@@ -362,7 +370,7 @@ export async function updateInvoice(req, res) {
 
     const query = isObjectIdString(id)
       ? { _id: id, owner: userId }
-      : { invoiceNumber: id, owner: userId };
+      : { invoiceNumber: str(id, 40), owner: userId };
 
     const existing = await Invoice.findOne(query);
 
@@ -378,7 +386,8 @@ export async function updateInvoice(req, res) {
       String(body.invoiceNumber).trim() !== existing.invoiceNumber
     ) {
       const conflict = await Invoice.findOne({
-        invoiceNumber: String(body.invoiceNumber).trim(),
+        owner: userId,
+        invoiceNumber: str(body.invoiceNumber, 40),
       });
 
       if (conflict && String(conflict._id) !== String(existing._id)) {
@@ -405,28 +414,20 @@ export async function updateInvoice(req, res) {
       });
     }
 
-    const taxPercent = Number(
-      body.taxPercent ??
-        body.tax ??
-        body.defaultTaxPercent ??
-        existing.taxPercent ??
-        0
-    );
+    const taxPercent = cleanTax(body.taxPercent ?? body.tax ?? body.defaultTaxPercent ?? existing.taxPercent ?? 0);
 
     const totals = computeTotals(items, taxPercent);
     const fileUrls = uploadedFilesToUrls(req);
 
     const update = {
-      invoiceNumber: body.invoiceNumber
-        ? String(body.invoiceNumber).trim()
-        : existing.invoiceNumber,
-      issueDate: body.issueDate ?? existing.issueDate,
-      dueDate: body.dueDate ?? existing.dueDate,
-      fromBusinessName: body.fromBusinessName ?? existing.fromBusinessName,
-      fromEmail: body.fromEmail ?? existing.fromEmail,
-      fromAddress: body.fromAddress ?? existing.fromAddress,
-      fromPhone: body.fromPhone ?? existing.fromPhone,
-      fromTaxId: body.fromTaxId ?? body.fromGst ?? existing.fromTaxId ?? existing.fromGst,
+      invoiceNumber: body.invoiceNumber ? str(body.invoiceNumber, 40) : existing.invoiceNumber,
+      issueDate: cleanDate(body.issueDate, existing.issueDate),
+      dueDate: body.dueDate !== undefined ? cleanDate(body.dueDate) : existing.dueDate,
+      fromBusinessName: body.fromBusinessName !== undefined ? str(body.fromBusinessName, 120) : existing.fromBusinessName,
+      fromEmail: body.fromEmail !== undefined ? str(body.fromEmail, 120) : existing.fromEmail,
+      fromAddress: body.fromAddress !== undefined ? str(body.fromAddress, 300) : existing.fromAddress,
+      fromPhone: body.fromPhone !== undefined ? str(body.fromPhone, 40) : existing.fromPhone,
+      fromTaxId: str(body.fromTaxId ?? body.fromGst ?? existing.fromTaxId ?? "", 40),
       client:
         body.client !== undefined
           ? normalizeClient(body.client)
@@ -435,29 +436,18 @@ export async function updateInvoice(req, res) {
       subtotal: totals.subtotal,
       tax: totals.tax,
       total: totals.total,
-      currency: body.currency ?? existing.currency,
-      status: body.status
-        ? String(body.status).toLowerCase()
-        : existing.status,
+      currency: cleanCurrency(body.currency, existing.currency),
+      status: cleanStatus(body.status, existing.status),
       taxPercent,
       logoDataUrl:
-        fileUrls.logoDataUrl ??
-        body.logoDataUrl ??
-        body.logo ??
-        existing.logoDataUrl,
+        fileUrls.logoDataUrl ?? cleanAsset(body.logoDataUrl ?? body.logo) ?? existing.logoDataUrl,
       stampDataUrl:
-        fileUrls.stampDataUrl ??
-        body.stampDataUrl ??
-        body.stamp ??
-        existing.stampDataUrl,
+        fileUrls.stampDataUrl ?? cleanAsset(body.stampDataUrl ?? body.stamp) ?? existing.stampDataUrl,
       signatureDataUrl:
-        fileUrls.signatureDataUrl ??
-        body.signatureDataUrl ??
-        body.signature ??
-        existing.signatureDataUrl,
-      signatureName: body.signatureName ?? existing.signatureName,
-      signatureTitle: body.signatureTitle ?? existing.signatureTitle,
-      notes: body.notes ?? body.aiSource ?? existing.notes,
+        fileUrls.signatureDataUrl ?? cleanAsset(body.signatureDataUrl ?? body.signature) ?? existing.signatureDataUrl,
+      signatureName: body.signatureName !== undefined ? str(body.signatureName, 100) : existing.signatureName,
+      signatureTitle: body.signatureTitle !== undefined ? str(body.signatureTitle, 100) : existing.signatureTitle,
+      notes: str(body.notes ?? body.aiSource ?? existing.notes, 2000),
     };
 
     const updated = await Invoice.findByIdAndUpdate(
@@ -476,7 +466,6 @@ export async function updateInvoice(req, res) {
     return res.status(500).json({
       success: false,
       message: "Server error",
-      detail: err?.message || String(err),
     });
   }
 }
@@ -496,7 +485,7 @@ export async function deleteInvoice(req, res) {
 
     const query = isObjectIdString(id)
       ? { _id: id, owner: userId }
-      : { invoiceNumber: id, owner: userId };
+      : { invoiceNumber: str(id, 40), owner: userId };
 
     const found = await Invoice.findOne(query);
 

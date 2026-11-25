@@ -3,10 +3,11 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
-import { invoicePreviewStyles } from "@/assets/dummyStyles";
+import { ArrowLeft, Pencil, Printer, FileX2 } from "lucide-react";
+import { Spinner, btnPrimary, btnSecondary } from "@/components/ui";
 import { getNavState, setNavState } from "@/lib/navState";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE;
+import { API_BASE } from "@/lib/config";
 const PROFILE_ENDPOINT = `${API_BASE}/api/businessProfile/me`;
 const INVOICE_ENDPOINT = (id) => `${API_BASE}/api/invoices/${id}`;
 
@@ -351,43 +352,15 @@ export default function InvoicePreview() {
   }, [invoice]);
 
   if (!invoice && (loadingInvoice || profileLoading)) {
-    return <div className="p-6">Loading…</div>;
+    return <div className="grid place-items-center py-32"><Spinner /></div>;
   }
   if (!invoice) {
     return (
-      <div className={invoicePreviewStyles.pageContainer}>
-        <div className={invoicePreviewStyles.emptyStateContainer}>
-          <div className={invoicePreviewStyles.emptyStateCard}>
-            <div className={invoicePreviewStyles.emptyStateIconContainer}>
-              <svg
-                className={invoicePreviewStyles.emptyStateIcon}
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
-                <circle cx="12" cy="12" r="10" />
-                <line x1="15" y1="9" x2="9" y2="15" />
-                <line x1="9" y1="9" x2="15" y2="15" />
-              </svg>
-            </div>
-            <h3 className={invoicePreviewStyles.emptyStateTitle}>
-              Invoice Not Found
-            </h3>
-            <p className={invoicePreviewStyles.emptyStateMessage}>
-              The invoice you're looking for doesn't exist or may have been
-              deleted.
-            </p>
-            <div className="mt-6">
-              <button
-                onClick={() => router.back()}
-                className={invoicePreviewStyles.emptyStateButton}
-              >
-                <ArrowLeftIcon className="w-4 h-4" /> Back to Invoices
-              </button>
-            </div>
-          </div>
-        </div>
+      <div className="mx-auto max-w-md rounded-3xl border border-ink-200 bg-white p-10 text-center shadow-card">
+        <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-rose-50 text-rose-600 ring-1 ring-rose-100"><FileX2 size={24} /></div>
+        <h1 className="mt-5 text-xl font-semibold">Invoice not found</h1>
+        <p className="mt-2 text-sm text-ink-500">It may have been deleted, or you may not have access to it.</p>
+        <button onClick={() => router.push("/app/invoices")} className={`${btnPrimary} mt-6`}><ArrowLeft size={16} /> Back to invoices</button>
       </div>
     );
   }
@@ -400,7 +373,7 @@ export default function InvoicePreview() {
     0
   );
   const taxPercent = Number(
-    invoice.taxPercent ?? profile.defaultTaxPercent ?? 18
+    invoice.taxPercent ?? profile.defaultTaxPercent ?? 0
   );
   const tax = (subtotal * taxPercent) / 100;
   const total = subtotal + tax;
@@ -426,372 +399,118 @@ export default function InvoicePreview() {
     router.push(`/app/invoices/${invoice.id}/edit`);
   }
 
+  const st = String(invoice.status || "draft").toLowerCase();
+  const stampCls = { paid: "border-brand-600 text-brand-700", unpaid: "border-amber-500 text-amber-600", overdue: "border-rose-500 text-rose-600", draft: "border-ink-300 text-ink-400" }[st] || "border-ink-300 text-ink-400";
+  const fromName = invoice.fromBusinessName || profile.businessName || "Your business";
+  const fromEmail = invoice.fromEmail || profile.email;
+  const fromPhone = invoice.fromPhone || profile.phone;
+  const fromTax = invoice.fromTaxId || invoice.fromGst || profile.taxId || profile.gst;
+  const fromAddress = invoice.fromAddress || profile.address;
+  const meta = [["Issued", formatDate(invoice.issueDate)], ["Due", invoice.dueDate ? formatDate(invoice.dueDate) : "On receipt"], ["Currency", invoiceCurrency]];
+
   return (
-    <div className={invoicePreviewStyles.pageContainer}>
-      <div className={invoicePreviewStyles.container}>
-        {/* Header Actions */}
-        <div
-          className={`${invoicePreviewStyles.headerContainer} ${invoicePreviewStyles.noPrint}`}
-        >
-          <div>
-            <h1 className={invoicePreviewStyles.headerTitle}>
-              Invoice Preview
-            </h1>
-            <p className={invoicePreviewStyles.headerSubtitle}>
-              Review invoice{" "}
-              <span className={invoicePreviewStyles.headerInvoiceNumber}>
-                #{invoice.invoiceNumber || invoice.id}
-              </span>
-            </p>
-          </div>
-
-          <div className={invoicePreviewStyles.headerActions}>
-            <button
-              onClick={goToEdit}
-              className={invoicePreviewStyles.editInvoiceButton}
-            >
-              <EditIcon className="w-4 h-4" /> Edit Invoice
-            </button>
-
-            <button
-              onClick={handlePrint}
-              className={invoicePreviewStyles.printButton}
-            >
-              <PrintIcon className="w-4 h-4" /> Print / Save as PDF
-            </button>
-          </div>
+    <div className="mx-auto max-w-4xl space-y-6">
+      <div className="no-print flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <button onClick={() => router.push("/app/invoices")} className="mb-2 inline-flex items-center gap-1.5 text-sm font-medium text-ink-500 hover:text-ink-900"><ArrowLeft size={15} /> All invoices</button>
+          <h1 className="font-display-tight text-3xl font-semibold">Invoice preview</h1>
+          <p className="mt-1 text-sm text-ink-500">Review <span className="num font-medium text-ink-800">#{invoice.invoiceNumber || invoice.id}</span> before sending.</p>
         </div>
-
-        {/* Printable invoice area */}
-        <div id="print-area" className={invoicePreviewStyles.printArea}>
-          <div className={invoicePreviewStyles.printHeader}>
-            <div className={invoicePreviewStyles.companyInfo}>
-              {logo && (
-                <img
-                  src={logo}
-                  alt="Company Logo"
-                  className={invoicePreviewStyles.logo}
-                  onError={(e) => {
-                    e.currentTarget.style.display = "none";
-                  }}
-                />
-              )}
-              <div>
-                <div className={invoicePreviewStyles.invoiceFromLabel}>
-                  Invoice From
-                </div>
-                <div className={invoicePreviewStyles.companyName}>
-                  {invoice.fromBusinessName || profile.businessName || "—"}
-                </div>
-                <div className={invoicePreviewStyles.companyAddress}>
-                  {invoice.fromAddress || profile.address || "—"}
-                </div>
-                <div className={invoicePreviewStyles.companyContact}>
-                  {invoice.fromEmail || profile.email ? (
-                    <div>
-                      <strong>Email:</strong>{" "}
-                      {invoice.fromEmail || profile.email}
-                    </div>
-                  ) : null}
-                  {invoice.fromPhone || profile.phone ? (
-                    <div>
-                      <strong>Phone:</strong>{" "}
-                      {invoice.fromPhone || profile.phone}
-                    </div>
-                  ) : null}
-                  {invoice.fromTaxId || invoice.fromGst || profile.taxId || profile.gst ? (
-                    <div>
-                      <strong>Tax ID:</strong> {invoice.fromTaxId || invoice.fromGst || profile.taxId || profile.gst}
-                    </div>
-                  ) : null}
-                </div>
-              </div>
-            </div>
-
-            <div className={invoicePreviewStyles.invoiceInfo}>
-              <div className={invoicePreviewStyles.invoiceTitle}>INVOICE</div>
-              <div className={invoicePreviewStyles.invoiceNumber}>
-                #{invoice.invoiceNumber || invoice.id}
-              </div>
-
-              <div className={invoicePreviewStyles.invoiceDetails}>
-                <div className={invoicePreviewStyles.invoiceDetailRow}>
-                  <span className={invoicePreviewStyles.invoiceDetailLabel}>
-                    Invoice Date:
-                  </span>
-                  <span className={invoicePreviewStyles.invoiceDetailValue}>
-                    {invoice.issueDate ? formatDate(invoice.issueDate) : "—"}
-                  </span>
-                </div>
-                <div className={invoicePreviewStyles.invoiceDetailRow}>
-                  <span className={invoicePreviewStyles.invoiceDetailLabel}>
-                    Due Date:
-                  </span>
-                  <span className={invoicePreviewStyles.invoiceDetailValue}>
-                    {invoice.dueDate ? formatDate(invoice.dueDate) : "—"}
-                  </span>
-                </div>
-                <div className={invoicePreviewStyles.invoiceDetailRow}>
-                  <span className={invoicePreviewStyles.invoiceDetailLabel}>
-                    Status:
-                  </span>
-                  <span
-                    className={`${invoicePreviewStyles.invoiceDetailValue} ${
-                      invoice.status === "paid"
-                        ? invoicePreviewStyles.statusPaid
-                        : invoice.status === "unpaid"
-                        ? invoicePreviewStyles.statusUnpaid
-                        : invoice.status === "overdue"
-                        ? invoicePreviewStyles.statusOverdue
-                        : invoicePreviewStyles.statusDraft
-                    }`}
-                  >
-                    {invoice.status
-                      ? invoice.status.charAt(0).toUpperCase() +
-                        invoice.status.slice(1)
-                      : "Draft"}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Client & Payment Details */}
-          <div className={invoicePreviewStyles.section}>
-            <div className={invoicePreviewStyles.flexContainer}>
-              <div className="flex-1">
-                <div className={invoicePreviewStyles.billToLabel}>Bill To</div>
-                <div className={invoicePreviewStyles.clientDetails}>
-                  <div className={invoicePreviewStyles.clientName}>
-                    {client.name || "Client Name"}
-                  </div>
-                  {client.address && (
-                    <div className={invoicePreviewStyles.clientText}>
-                      {client.address}
-                    </div>
-                  )}
-                  {client.email && (
-                    <div className={invoicePreviewStyles.clientText}>
-                      {client.email}
-                    </div>
-                  )}
-                  {client.phone && (
-                    <div className={invoicePreviewStyles.clientText}>
-                      {client.phone}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="flex-1">
-                <div className={invoicePreviewStyles.paymentDetailsLabel}>
-                  Payment Details
-                </div>
-                <div className={invoicePreviewStyles.paymentDetails}>
-                  <div className={invoicePreviewStyles.paymentDetailRow}>
-                    <span className={invoicePreviewStyles.paymentDetailLabel}>
-                      Currency:
-                    </span>
-                    <span className={invoicePreviewStyles.paymentDetailValue}>
-                      {invoiceCurrency}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Items Table */}
-          <div className={invoicePreviewStyles.section}>
-            <div className="overflow-x-auto">
-              <table className={invoicePreviewStyles.table}>
-                <thead>
-                  <tr>
-                    <th style={{ width: "50%", minWidth: "150px" }}>
-                      Description
-                    </th>
-                    <th
-                      style={{
-                        width: "15%",
-                        textAlign: "right",
-                        minWidth: "70px",
-                      }}
-                    >
-                      Quantity
-                    </th>
-                    <th
-                      style={{
-                        width: "20%",
-                        textAlign: "right",
-                        minWidth: "90px",
-                      }}
-                    >
-                      Unit Price
-                    </th>
-                    <th
-                      style={{
-                        width: "15%",
-                        textAlign: "right",
-                        minWidth: "80px",
-                      }}
-                    >
-                      Total
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {items.length ? (
-                    items.map((it, idx) => (
-                      <tr key={it.id || idx}>
-                        <td className={invoicePreviewStyles.tableCell}>
-                          {it.description || "Item Description"}
-                        </td>
-                        <td style={{ textAlign: "right" }}>{it.qty || 0}</td>
-                        <td style={{ textAlign: "right" }}>
-                          {currencyFmt(it.unitPrice, invoiceCurrency)}
-                        </td>
-                        <td style={{ textAlign: "right", fontWeight: "600" }}>
-                          {currencyFmt(
-                            Number(it.qty || 0) * Number(it.unitPrice || 0),
-                            invoiceCurrency
-                          )}
-                        </td>
-                      </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td
-                        colSpan="4"
-                        style={{
-                          textAlign: "center",
-                          padding: "20px",
-                          color: "#6b7280",
-                        }}
-                      >
-                        No items added to this invoice
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {/* Notes */}
-          {invoice.notes && (
-            <div className={invoicePreviewStyles.section}>
-              <div className={invoicePreviewStyles.notesLabel}>Notes</div>
-              <div className={invoicePreviewStyles.notesContent}>
-                {invoice.notes}
-              </div>
-            </div>
-          )}
-
-          {/* Totals, Signature, Stamp */}
-          <div className={invoicePreviewStyles.section}>
-            <div className={invoicePreviewStyles.flexContainer}>
-              <div className="flex-1">
-                <div className={invoicePreviewStyles.signatureLabel}>
-                  Authorized Signature
-                </div>
-                {signature ? (
-                  <div className={invoicePreviewStyles.signatureContainer}>
-                    <img
-                      src={signature}
-                      alt="Authorized Signature"
-                      className={invoicePreviewStyles.signatureImage}
-                      onError={(e) => {
-                        e.currentTarget.style.display = "none";
-                      }}
-                    />
-                    {(signatureName || signatureTitle) && (
-                      <div className="mt-2 text-sm text-gray-700">
-                        <div className={invoicePreviewStyles.signatureName}>
-                          {signatureName}
-                        </div>
-                        {signatureTitle && (
-                          <div className={invoicePreviewStyles.signatureTitle}>
-                            {signatureTitle}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div className={invoicePreviewStyles.placeholderContainer}>
-                    No Signature
-                  </div>
-                )}
-              </div>
-
-              <div className="flex-1 text-center">
-                <div className={invoicePreviewStyles.stampLabel}>
-                  Company Stamp
-                </div>
-                {stamp ? (
-                  <img
-                    src={stamp}
-                    alt="Company Stamp"
-                    className={invoicePreviewStyles.stampImage}
-                    onError={(e) => {
-                      e.currentTarget.style.display = "none";
-                    }}
-                  />
-                ) : (
-                  <div className={invoicePreviewStyles.placeholderContainer}>
-                    No Stamp
-                  </div>
-                )}
-              </div>
-
-              <div className="flex-1">
-                <div className={invoicePreviewStyles.totalsContainer}>
-                  <div className="space-y-2">
-                    <div className={invoicePreviewStyles.totalsRow}>
-                      <span className={invoicePreviewStyles.totalsLabel}>
-                        Subtotal
-                      </span>
-                      <span className={invoicePreviewStyles.totalsValue}>
-                        {currencyFmt(subtotal, invoiceCurrency)}
-                      </span>
-                    </div>
-                    <div className={invoicePreviewStyles.totalsRow}>
-                      <span className={invoicePreviewStyles.totalsLabel}>
-                        Tax ({taxPercent}%)
-                      </span>
-                      <span className={invoicePreviewStyles.totalsValue}>
-                        {currencyFmt(tax, invoiceCurrency)}
-                      </span>
-                    </div>
-                    <div className={invoicePreviewStyles.totalDivider}>
-                      <div className={invoicePreviewStyles.totalsRow}>
-                        <span className={invoicePreviewStyles.totalAmountLabel}>
-                          Total Amount
-                        </span>
-                        <span className={invoicePreviewStyles.totalAmountValue}>
-                          {currencyFmt(total, invoiceCurrency)}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Footer */}
-          <div className={invoicePreviewStyles.footer}>
-            <div className={invoicePreviewStyles.footerText}>
-              {invoice.terms ||
-                invoice.footnote ||
-                "Thank you for your business. We appreciate your trust in our services."}
-            </div>
-            <div className={invoicePreviewStyles.footerSubText}>
-              Invoice generated by PromptToInvoice • {formatDate(new Date())}
-            </div>
-          </div>
+        <div className="flex flex-wrap gap-3">
+          <button onClick={goToEdit} className={btnSecondary}><Pencil size={15} /> Edit</button>
+          <button onClick={handlePrint} className={btnPrimary}><Printer size={15} /> Print / Save PDF</button>
         </div>
       </div>
+
+      <article id="print-area" className="relative overflow-hidden rounded-3xl border border-ink-200 bg-white shadow-lift print:rounded-none print:shadow-none">
+        <div className="h-2 bg-gradient-to-r from-brand-700 via-brand-500 to-signal" />
+        <div className="p-8 sm:p-12">
+          <header className="flex flex-col gap-8 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0">
+              {logo && <img src={logo} alt="Company logo" className="mb-5 max-h-16 max-w-[200px] object-contain" onError={(e) => { e.currentTarget.style.display = "none"; }} />}
+              <p className="text-lg font-semibold">{fromName}</p>
+              <div className="mt-1.5 space-y-0.5 text-sm text-ink-600">
+                {fromAddress && <p className="whitespace-pre-line">{fromAddress}</p>}
+                {fromEmail && <p>{fromEmail}</p>}
+                {fromPhone && <p>{fromPhone}</p>}
+                {fromTax && <p className="num">Tax ID: {fromTax}</p>}
+              </div>
+            </div>
+            <div className="sm:text-right">
+              <h2 className="font-display-tight text-5xl font-semibold tracking-tight">Invoice</h2>
+              <p className="num mt-1.5 text-sm text-ink-500">#{invoice.invoiceNumber || invoice.id}</p>
+              <span className={`mt-4 inline-block -rotate-3 rounded-lg border-2 px-3 py-1 text-xs font-extrabold uppercase tracking-[0.2em] ${stampCls}`}>{st}</span>
+            </div>
+          </header>
+
+          <section className="mt-10 grid gap-6 rounded-2xl bg-ink-50 p-6 sm:grid-cols-[1.4fr_1fr]">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-ink-500">Billed to</p>
+              <p className="mt-2 text-base font-semibold">{client.name || "-"}</p>
+              <div className="mt-1 space-y-0.5 text-sm text-ink-600">
+                {client.address && <p className="whitespace-pre-line">{client.address}</p>}
+                {client.email && <p>{client.email}</p>}
+                {client.phone && <p>{client.phone}</p>}
+              </div>
+            </div>
+            <dl className="space-y-2 text-sm">
+              {meta.map(([k, v]) => (
+                <div key={k} className="flex justify-between gap-4"><dt className="text-ink-500">{k}</dt><dd className="num font-medium">{v}</dd></div>
+              ))}
+            </dl>
+          </section>
+
+          <div className="mt-10 overflow-x-auto">
+            <table className="w-full min-w-[520px] text-left text-sm">
+              <thead>
+                <tr className="border-b-2 border-ink-900 text-xs uppercase tracking-wider text-ink-500">
+                  <th className="pb-3 font-semibold">Description</th>
+                  <th className="pb-3 text-right font-semibold">Qty</th>
+                  <th className="pb-3 text-right font-semibold">Rate</th>
+                  <th className="pb-3 text-right font-semibold">Amount</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-ink-100">
+                {items.map((it, i) => (
+                  <tr key={it.id || i}>
+                    <td className="py-4 pr-4 font-medium">{it.description}</td>
+                    <td className="num py-4 text-right text-ink-600">{it.qty}</td>
+                    <td className="num py-4 text-right text-ink-600">{currencyFmt(it.unitPrice, invoiceCurrency)}</td>
+                    <td className="num py-4 text-right font-medium">{currencyFmt(Number(it.qty || 0) * Number(it.unitPrice || 0), invoiceCurrency)}</td>
+                  </tr>
+                ))}
+                {items.length === 0 && <tr><td colSpan={4} className="py-8 text-center text-ink-400">No line items</td></tr>}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="mt-8 flex flex-col gap-8 sm:flex-row sm:items-end sm:justify-between">
+            <div className="max-w-sm text-sm text-ink-600">
+              {invoice.notes && (<><p className="text-xs font-semibold uppercase tracking-[0.16em] text-ink-500">Notes</p><p className="mt-2 whitespace-pre-line">{invoice.notes}</p></>)}
+            </div>
+            <div className="w-full space-y-2 text-sm sm:w-72">
+              <div className="flex justify-between text-ink-600"><span>Subtotal</span><span className="num">{currencyFmt(subtotal, invoiceCurrency)}</span></div>
+              <div className="flex justify-between text-ink-600"><span>Tax ({taxPercent}%)</span><span className="num">{currencyFmt(tax, invoiceCurrency)}</span></div>
+              <div className="mt-3 flex items-center justify-between rounded-2xl bg-ink-950 px-5 py-4 text-paper">
+                <span className="font-medium">Total due</span>
+                <span className="num text-2xl font-semibold text-signal">{currencyFmt(total, invoiceCurrency)}</span>
+              </div>
+            </div>
+          </div>
+
+          {(stamp || signature || signatureName) && (
+            <footer className="mt-14 flex items-end justify-between gap-6 border-t border-ink-100 pt-8">
+              <div>{stamp && <img src={stamp} alt="Company stamp" className="max-h-24 max-w-[140px] object-contain opacity-90" onError={(e) => { e.currentTarget.style.display = "none"; }} />}</div>
+              <div className="text-right">
+                {signature && <img src={signature} alt="Signature" className="ml-auto max-h-16 max-w-[180px] object-contain" onError={(e) => { e.currentTarget.style.display = "none"; }} />}
+                {signatureName && <p className="mt-2 border-t border-ink-300 pt-2 text-sm font-semibold">{signatureName}</p>}
+                {signatureTitle && <p className="text-xs text-ink-500">{signatureTitle}</p>}
+              </div>
+            </footer>
+          )}
+          <p className="mt-10 text-center text-xs text-ink-400">Thank you for your business.</p>
+        </div>
+      </article>
     </div>
   );
 }

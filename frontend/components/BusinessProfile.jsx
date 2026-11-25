@@ -1,16 +1,11 @@
 "use client";
 
 import React, { useEffect, useState, useCallback } from "react";
-import { businessProfileStyles, iconColors, customStyles } from "@/assets/dummyStyles";
 import { useAuth } from "@/context/AuthContext";
-import {
-  ImageIcon,
-  SaveIcon,
-  Trash2 as DeleteIcon,
-  RotateCcw as ResetIcon,
-} from "lucide-react";
+import { ImageIcon, Save, RotateCcw, Trash2, Upload, Building2, CheckCircle2, AlertCircle } from "lucide-react";
+import { PageHeader, Card, inputCls, labelCls, btnPrimary, btnSecondary } from "@/components/ui";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE;
+import { API_BASE } from "@/lib/config";
 
 const DEFAULT_META = {
   businessName: "",
@@ -69,6 +64,7 @@ const BusinessProfile = () => {
 
   const [meta, setMeta] = useState(DEFAULT_META);
   const [saving, setSaving] = useState(false);
+  const [notice, setNotice] = useState(null);
 
   const [files, setFiles] = useState({
     logo: null,
@@ -185,18 +181,22 @@ const BusinessProfile = () => {
   async function handleSave(e) {
     e?.preventDefault();
     setSaving(true);
+    setNotice(null);
 
     try {
       const token = await getAuthToken();
       if (!token) {
-        alert("Login required");
+        setNotice({ type: "error", text: "Please sign in to save your profile." });
         return;
       }
 
       const fd = new FormData();
 
       Object.entries(meta).forEach(([key, value]) => {
-        if (value !== null && value !== undefined) {
+        if (key === "profileId") return;
+        if (["logoUrl", "stampUrl", "signatureUrl"].includes(key)) {
+          fd.append(key, typeof value === "string" && !value.startsWith("blob:") ? value : "");
+        } else if (value !== null && value !== undefined) {
           fd.append(key, value);
         }
       });
@@ -252,10 +252,10 @@ const BusinessProfile = () => {
         });
       }
 
-      alert("Saved successfully");
+      setNotice({ type: "ok", text: "Business profile saved." });
     } catch (err) {
       console.error("handleSave error:", err);
-      alert(err?.message || "Error saving profile");
+      setNotice({ type: "error", text: "Could not save the profile. Check your inputs and try again." });
     } finally {
       setSaving(false);
     }
@@ -273,460 +273,85 @@ const BusinessProfile = () => {
     setPreviews({ logo: null, stamp: null, signature: null });
   }
 
+  const assets = [
+    { kind: "logo", label: "Logo", hint: "Shown on every invoice header" },
+    { kind: "stamp", label: "Stamp", hint: "Optional company stamp" },
+    { kind: "signature", label: "Signature", hint: "Authorised signature" },
+  ];
+  const srcFor = (kind) => previews[kind] || resolveImageUrl(meta[kind + "Url"]);
+  const set = (f) => (e) => updateMeta(f, e.target.value);
+
   return (
-    <div className={businessProfileStyles.pageContainer}>
-      <div className={businessProfileStyles.headerContainer}>
-        <h1 className={businessProfileStyles.headerTitle}>Business Profile</h1>
-        <p className={businessProfileStyles.headerSubtitle}>
-          Configure your company details, branding assets and invoice defaults
-        </p>
+    <div className="space-y-8">
+      <PageHeader eyebrow="Settings" title="Business profile" subtitle="Your company details, branding and invoice defaults. Saved once, reused on every invoice." />
 
-        {!isSignedIn && (
-          <div
-            style={{
-              marginTop: 12,
-              color: "#92400e",
-              background: "#fff7ed",
-              padding: 10,
-              borderRadius: 8,
-            }}
-          >
-            You are not signed in. Please sign in to load and save your business
-            profile.
-          </div>
-        )}
-      </div>
+      {!isSignedIn && <div role="alert" className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-800">You are not signed in. Sign in to load and save your profile.</div>}
+      {notice && (
+        <div role="status" className={`flex items-center gap-2.5 rounded-2xl border px-5 py-4 text-sm ${notice.type === "ok" ? "border-brand-200 bg-brand-50 text-brand-800" : "border-rose-200 bg-rose-50 text-rose-700"}`}>
+          {notice.type === "ok" ? <CheckCircle2 size={18} /> : <AlertCircle size={18} />} {notice.text}
+        </div>
+      )}
 
-      <form onSubmit={handleSave} className={businessProfileStyles.pageContainer}>
-        <div className={businessProfileStyles.cardContainer}>
-          <div className={businessProfileStyles.cardHeaderContainer}>
-            <div
-              className={`${businessProfileStyles.cardIconContainer} ${iconColors.business}`}
-            >
-              <svg
-                className="w-5 h-5"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
-                <path d="M19 21V5a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 8v-4m0 4h4" />
-              </svg>
+      <form onSubmit={handleSave} className="grid gap-6 xl:grid-cols-[1.3fr_1fr]">
+        <div className="space-y-6">
+          <Card className="p-7">
+            <div className="mb-6 flex items-center gap-3">
+              <span className="grid h-10 w-10 place-items-center rounded-xl bg-brand-50 text-brand-700 ring-1 ring-brand-100"><Building2 size={19} /></span>
+              <h2 className="text-lg font-semibold">Company details</h2>
             </div>
-            <h2 className={businessProfileStyles.cardTitle}>Business Information</h2>
-          </div>
-
-          <div className={businessProfileStyles.gridCols2}>
-            <div>
-              <label className={businessProfileStyles.label}>Business Name</label>
-              <input
-                className={businessProfileStyles.input}
-                value={meta.businessName}
-                onChange={(e) => updateMeta("businessName", e.target.value)}
-                placeholder="Enter your business name"
-              />
+            <div className="grid gap-5 sm:grid-cols-2">
+              <div className="sm:col-span-2"><label className={labelCls} htmlFor="bn">Business name</label><input id="bn" required maxLength={120} className={inputCls} value={meta.businessName} onChange={set("businessName")} placeholder="Acme Studio LLC" /></div>
+              <div><label className={labelCls} htmlFor="em">Email</label><input id="em" type="email" maxLength={120} className={inputCls} value={meta.email} onChange={set("email")} placeholder="billing@acme.com" /></div>
+              <div><label className={labelCls} htmlFor="ph">Phone</label><input id="ph" maxLength={40} className={inputCls} value={meta.phone} onChange={set("phone")} placeholder="+1 555 010 2030" /></div>
+              <div className="sm:col-span-2"><label className={labelCls} htmlFor="ad">Address</label><textarea id="ad" rows={3} maxLength={300} className={inputCls} value={meta.address} onChange={set("address")} placeholder="Street, city, postal code, country" /></div>
+              <div><label className={labelCls} htmlFor="tx">Tax ID (EIN / VAT)</label><input id="tx" maxLength={40} className={`${inputCls} num`} value={meta.taxId} onChange={set("taxId")} placeholder="US 12-3456789 / DE123456789" /></div>
+              <div><label className={labelCls} htmlFor="dt">Default tax %</label><input id="dt" type="number" min="0" max="100" step="0.01" className={`${inputCls} num`} value={meta.defaultTaxPercent} onChange={set("defaultTaxPercent")} /></div>
             </div>
+          </Card>
 
-            <div>
-              <label className={businessProfileStyles.label}>Email</label>
-              <input
-                className={businessProfileStyles.input}
-                value={meta.email}
-                onChange={(e) => updateMeta("email", e.target.value)}
-                placeholder="business@example.com"
-              />
+          <Card className="p-7">
+            <h2 className="mb-6 text-lg font-semibold">Signatory</h2>
+            <div className="grid gap-5 sm:grid-cols-2">
+              <div><label className={labelCls} htmlFor="so">Name</label><input id="so" maxLength={100} className={inputCls} value={meta.signatureOwnerName} onChange={set("signatureOwnerName")} placeholder="Jane Cooper" /></div>
+              <div><label className={labelCls} htmlFor="st">Title</label><input id="st" maxLength={100} className={inputCls} value={meta.signatureOwnerTitle} onChange={set("signatureOwnerTitle")} placeholder="Founder & CEO" /></div>
             </div>
-
-            <div>
-              <label className={businessProfileStyles.gridColSpan2}>Address</label>
-              <textarea
-                rows={3}
-                className={businessProfileStyles.textarea}
-                value={meta.address}
-                onChange={(e) => updateMeta("address", e.target.value)}
-                placeholder="Enter your business address"
-              />
-            </div>
-
-            <div>
-              <label className={businessProfileStyles.label}>Phone</label>
-              <input
-                className={businessProfileStyles.input}
-                value={meta.phone}
-                onChange={(e) => updateMeta("phone", e.target.value)}
-                placeholder="+17122235638"
-              />
-            </div>
-
-            <div>
-              <label className={businessProfileStyles.label}>Tax ID (EIN/VAT)</label>
-              <input
-                className={businessProfileStyles.input}
-                value={meta.taxId}
-                onChange={(e) => updateMeta("taxId", e.target.value)}
-                placeholder="12-3456789 (US EIN) or GB123456789 (EU VAT)"
-              />
-            </div>
-          </div>
+          </Card>
         </div>
 
-        <div className={businessProfileStyles.cardContainer}>
-          <div className={businessProfileStyles.cardHeaderContainer}>
-            <div
-              className={`${businessProfileStyles.cardIconContainer} ${iconColors.branding}`}
-            >
-              <ImageIcon className="w-5 h-5" />
-            </div>
-            <h2 className={businessProfileStyles.cardTitle}>Branding & Default</h2>
-          </div>
-
-          <div className={businessProfileStyles.gridCols2Lg}>
-            <div className="space-y-6">
-              <div>
-                <h3 className="text-lg font-medium text-gray-900 mb-4">Company Logo</h3>
-
-                <div className={businessProfileStyles.uploadArea}>
-                  {previews.logo ? (
-                    <div className={businessProfileStyles.imagePreviewContainer}>
-                      <div className={businessProfileStyles.logoPreview}>
-                        <img
-                          src={previews.logo}
-                          alt="logo preview"
-                          className="object-contain w-full h-full"
-                          onError={(e) => {
-                            e.currentTarget.style.display = "none";
-                            console.warn(
-                              "[BusinessProfile] logo preview failed to load:",
-                              previews.logo
-                            );
-                          }}
-                        />
-                      </div>
-
-                      <div className={businessProfileStyles.buttonGroup}>
-                        <label className={businessProfileStyles.changeButton}>
-                          <UploadIcon className="w-4 h-4" />
-                          Change
-                          <input
-                            type="file"
-                            accept="image/*"
-                            onChange={(e) =>
-                              handleLocalFilePick("logo", e.target.files?.[0])
-                            }
-                            className="hidden"
-                          />
+        <div className="space-y-6">
+          <Card className="p-7">
+            <h2 className="mb-1 text-lg font-semibold">Branding</h2>
+            <p className="mb-6 text-sm text-ink-500">PNG, JPG or WEBP, up to 2 MB each.</p>
+            <div className="space-y-4">
+              {assets.map(({ kind, label, hint }) => {
+                const src = srcFor(kind);
+                return (
+                  <div key={kind} className="flex items-center gap-4 rounded-2xl border border-dashed border-ink-300 bg-ink-50/60 p-4">
+                    <div className="grid h-20 w-24 shrink-0 place-items-center overflow-hidden rounded-xl border border-ink-200 bg-white">
+                      {src ? <img src={src} alt={`${label} preview`} className="max-h-full max-w-full object-contain" /> : <ImageIcon className="text-ink-300" size={26} />}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold">{label}</p>
+                      <p className="text-xs text-ink-500">{hint}</p>
+                      <div className="mt-2.5 flex flex-wrap gap-2">
+                        <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-ink-200 bg-white px-3 py-1.5 text-xs font-semibold hover:border-ink-900 focus-within:ring-4 focus-within:ring-brand-100">
+                          <Upload size={13} /> {src ? "Replace" : "Upload"}
+                          <input type="file" accept="image/png,image/jpeg,image/webp" className="sr-only"
+                            onChange={(e) => { const f = e.target.files?.[0]; if (f && f.size > 2 * 1024 * 1024) { setNotice({ type: "error", text: `${label} is larger than 2 MB.` }); e.target.value = ""; return; } handleLocalFilePick(kind, f); }} />
                         </label>
-
-                        <button
-                          type="button"
-                          onClick={() => removeLocalFile("logo")}
-                          className={businessProfileStyles.removeButton}
-                        >
-                          <DeleteIcon className="w-4 h-4" /> Remove
-                        </button>
+                        {src && <button type="button" onClick={() => removeLocalFile(kind)} className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold text-rose-600 hover:bg-rose-50"><Trash2 size={13} /> Remove</button>}
                       </div>
-                    </div>
-                  ) : (
-                    <label className="cursor-pointer block">
-                      <div
-                        className={`${businessProfileStyles.imagePreviewContainer} ${businessProfileStyles.hoverScale}`}
-                      >
-                        <div className={businessProfileStyles.uploadIconContainer}>
-                          <UploadIcon className="w-6 h-6" />
-                        </div>
-                        <div>
-                          <p className={businessProfileStyles.uploadTextTitle}>
-                            Upload Logo
-                          </p>
-                          <p className={businessProfileStyles.uploadTextSubtitle}>
-                            PNG, JPG up to 5MB
-                          </p>
-                        </div>
-                        <input
-                          type="file"
-                          accept="image/*"
-                          onChange={(e) =>
-                            handleLocalFilePick("logo", e.target.files?.[0])
-                          }
-                          className="hidden"
-                        />
-                      </div>
-                    </label>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-6">
-              <div>
-                <h3 className="text-lg font-medium text-gray-900 mb-4">
-                  Tax Setting
-                </h3>
-
-                <div className={businessProfileStyles.taxContainer}>
-                  <label className={businessProfileStyles.label}>
-                    Default Tax Percentage
-                  </label>
-
-                  <div className="flex items-center gap-3">
-                    <input
-                      type="number"
-                      min="0"
-                      max="100"
-                      step="0.1"
-                      className={businessProfileStyles.taxInput}
-                      value={meta.defaultTaxPercent}
-                      onChange={(e) =>
-                        updateMeta("defaultTaxPercent", Number(e.target.value || 0))
-                      }
-                    />
-                    <span className={customStyles.taxPercentage}>%</span>
-                  </div>
-
-                  <p className={businessProfileStyles.taxHelpText}>
-                    This tax rate will be prefixed in new invoices. You can adjust it
-                    per invoice as needed.
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className={businessProfileStyles.cardContainer}>
-          <div className={businessProfileStyles.cardHeaderContainer}>
-            <div
-              className={`${businessProfileStyles.cardIconContainer} ${iconColors.assets}`}
-            >
-              <svg
-                className="w-5 h-5"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
-                <path d="M12 19l7-7 3 3-7 7-3-3z" />
-                <path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z" />
-                <path d="M2 2l7.586 7.586" />
-              </svg>
-            </div>
-            <h2 className={businessProfileStyles.cardTitle}>Digital Assets</h2>
-          </div>
-
-          <div className={businessProfileStyles.gridCols2Lg}>
-            <div>
-              <h3 className="text-lg font-medium text-gray-900 mb-4">
-                Digital Stamp
-              </h3>
-
-              <div className={businessProfileStyles.uploadArea}>
-                {previews.stamp ? (
-                  <div className={businessProfileStyles.imagePreviewContainer}>
-                    <div className={businessProfileStyles.stampPreview}>
-                      <img
-                        src={previews.stamp}
-                        alt="stamp preview"
-                        className="object-contain w-full h-full"
-                        onError={(e) => {
-                          e.currentTarget.style.display = "none";
-                          console.warn(
-                            "[BusinessProfile] stamp preview failed to load:",
-                            previews.stamp
-                          );
-                        }}
-                      />
-                    </div>
-
-                    <div className={businessProfileStyles.buttonGroup}>
-                      <label className={businessProfileStyles.changeButton}>
-                        <UploadIcon className="w-4 h-4" /> Change
-                        <input
-                          type="file"
-                          accept="image/*"
-                          onChange={(e) =>
-                            handleLocalFilePick("stamp", e.target.files?.[0])
-                          }
-                          className="hidden"
-                        />
-                      </label>
-
-                      <button
-                        type="button"
-                        onClick={() => removeLocalFile("stamp")}
-                        className={businessProfileStyles.removeButton}
-                      >
-                        <DeleteIcon className="w-4 h-4" /> Remove
-                      </button>
                     </div>
                   </div>
-                ) : (
-                  <label className="cursor-pointer block">
-                    <div
-                      className={`${businessProfileStyles.imagePreviewContainer} ${businessProfileStyles.hoverScale}`}
-                    >
-                      <div className={businessProfileStyles.uploadSmallIconContainer}>
-                        <ImageIcon className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <p className={businessProfileStyles.uploadTextTitle}>
-                          Upload Stamp
-                        </p>
-                        <p className={businessProfileStyles.uploadTextSubtitle}>
-                          PNG with transparent background
-                        </p>
-                      </div>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={(e) =>
-                          handleLocalFilePick("stamp", e.target.files?.[0])
-                        }
-                        className="hidden"
-                      />
-                    </div>
-                  </label>
-                )}
-              </div>
+                );
+              })}
             </div>
+          </Card>
 
-            <div>
-              <h3 className="text-lg font-medium text-gray-900 mb-4">
-                Digital Signature
-              </h3>
-
-              <div className={businessProfileStyles.uploadArea}>
-                {previews.signature ? (
-                  <div className={businessProfileStyles.imagePreviewContainer}>
-                    <div className={businessProfileStyles.signaturePreview}>
-                      <img
-                        src={previews.signature}
-                        alt="signature preview"
-                        className="object-contain w-full h-full"
-                        onError={(e) => {
-                          e.currentTarget.style.display = "none";
-                          console.warn(
-                            "[BusinessProfile] signature preview failed to load:",
-                            previews.signature
-                          );
-                        }}
-                      />
-                    </div>
-
-                    <div className={businessProfileStyles.buttonGroup}>
-                      <label className={businessProfileStyles.changeButton}>
-                        <UploadIcon className="w-4 h-4" /> Change
-                        <input
-                          type="file"
-                          accept="image/*"
-                          onChange={(e) =>
-                            handleLocalFilePick("signature", e.target.files?.[0])
-                          }
-                          className="hidden"
-                        />
-                      </label>
-
-                      <button
-                        type="button"
-                        onClick={() => removeLocalFile("signature")}
-                        className={businessProfileStyles.removeButton}
-                      >
-                        <DeleteIcon className="w-4 h-4" /> Remove
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <label className="cursor-pointer block">
-                    <div
-                      className={`${businessProfileStyles.imagePreviewContainer} ${businessProfileStyles.hoverScale}`}
-                    >
-                      <div className={businessProfileStyles.uploadSmallIconContainer}>
-                        <svg
-                          className="w-5 h-5"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                        >
-                          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                          <circle cx="12" cy="7" r="4" />
-                        </svg>
-                      </div>
-                      <div>
-                        <p className={businessProfileStyles.uploadTextTitle}>
-                          Upload Signature
-                        </p>
-                        <p className={businessProfileStyles.uploadTextSubtitle}>
-                          PNG with transparent background
-                        </p>
-                      </div>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={(e) =>
-                          handleLocalFilePick("signature", e.target.files?.[0])
-                        }
-                        className="hidden"
-                      />
-                    </div>
-                  </label>
-                )}
-              </div>
-
-              <div className="mt-6 space-y-4">
-                <div>
-                  <label className={businessProfileStyles.label}>
-                    Signature Owner Name
-                  </label>
-                  <input
-                    placeholder="John Doe"
-                    value={meta.signatureOwnerName}
-                    onChange={(e) =>
-                      updateMeta("signatureOwnerName", e.target.value)
-                    }
-                    className={`${businessProfileStyles.input} ${customStyles.inputPlaceholder}`}
-                  />
-                </div>
-
-                <div>
-                  <label className={businessProfileStyles.label}>
-                    Signature Title / Designation
-                  </label>
-                  <input
-                    placeholder="Director / CEO"
-                    value={meta.signatureOwnerTitle}
-                    onChange={(e) =>
-                      updateMeta("signatureOwnerTitle", e.target.value)
-                    }
-                    className={`${businessProfileStyles.input} ${customStyles.inputPlaceholder}`}
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className={businessProfileStyles.actionContainer}>
-          <div className={businessProfileStyles.actionInnerContainer}>
-            <div className={businessProfileStyles.actionButtonGroup}>
-              <button
-                type="submit"
-                onClick={handleSave}
-                disabled={saving}
-                className={businessProfileStyles.saveButton}
-              >
-                <SaveIcon className="w-4 h-4" />{" "}
-                {saving ? "Saving..." : "Save Profile"}
-              </button>
-
-              <button
-                type="button"
-                onClick={handleClearProfile}
-                className={businessProfileStyles.resetButton}
-              >
-                <ResetIcon className="w-4 h-4" /> Clear Profile
-              </button>
-            </div>
-          </div>
+          <Card className="flex flex-wrap items-center gap-3 p-5">
+            <button type="submit" disabled={saving || !isSignedIn} className={`${btnPrimary} flex-1`}><Save size={16} /> {saving ? "Saving..." : "Save profile"}</button>
+            <button type="button" onClick={handleClearProfile} className={btnSecondary}><RotateCcw size={15} /> Reset</button>
+          </Card>
         </div>
       </form>
     </div>

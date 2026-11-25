@@ -2,6 +2,24 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer base {
+  html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+  h1, h2, h3 { text-wrap: balance; }
+  :focus-visible { outline: 2px solid #128A5E; outline-offset: 2px; border-radius: 6px; }
+  ::placeholder { color: #8B95A7; }
+  input, textarea, select { font: inherit; }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+  }
+}
+
+@layer components {
+  .font-display-tight { font-family: var(--font-display); letter-spacing: -0.02em; font-variation-settings: "opsz" 144; }
+  .num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+  .grain { background-image: radial-gradient(rgba(15,19,26,.06) 1px, transparent 1px); background-size: 18px 18px; }
+  .glass { background: rgba(251,250,247,.78); backdrop-filter: saturate(160%) blur(14px); }
+}
+
 /* Add to your global CSS file */
 /* Mobile Responsiveness */
 @media screen and (max-width: 768px) {
@@ -397,4 +415,9 @@
 
 .animate-pulse-slow {
   animation: pulse-slow 4s ease-in-out infinite;
+}
+
+@media print {
+  aside, header.glass { display: none !important; }
+  main { padding: 0 !important; max-width: none !important; }
 }

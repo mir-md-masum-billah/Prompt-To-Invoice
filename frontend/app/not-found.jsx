@@ -1,24 +1,18 @@
-"use client";
+import Link from "next/link";
+import Logo from "@/components/Logo";
 
-import React from 'react'
-import Link from 'next/link'
+export const metadata = { title: "Page not found" };
 
-const NotFound = () => {
+export default function NotFound() {
   return (
-    <div className='min-h-screen flex items-center justify-center bg-white'>
-    <div className='text-center p-8'>
-      <h1 className='text-4xl font-bold mb-2'>
-     404
-      </h1>
-      <p className='text-gray-800 mb-6'>
-       Page Not Found
-      </p>
-      <Link href='/' className='px-4 py-22 rounded-md bg-indigo-700 text-white'>
-       Go Home
-      </Link>
-    </div>
-    </div>
-  )
+    <main className="grid min-h-screen place-items-center px-6 text-center">
+      <div>
+        <div className="flex justify-center"><Logo /></div>
+        <p className="num mt-14 text-sm text-brand-700">ERROR 404</p>
+        <h1 className="font-display-tight mt-3 text-5xl font-semibold">This invoice doesn&apos;t exist.</h1>
+        <p className="mt-4 text-ink-600">The page you&apos;re looking for was moved or never existed.</p>
+        <Link href="/" className="mt-8 inline-block rounded-full bg-ink-950 px-7 py-3.5 text-sm font-semibold text-paper hover:bg-brand-700">Back to home</Link>
+      </div>
+    </main>
+  );
 }
-
-export default NotFound

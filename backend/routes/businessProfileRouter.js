@@ -1,54 +1,19 @@
-import express from 'express';
-import multer from 'multer';
-import path from 'path'
+import express from "express";
+import { requireAuth } from "../middleware/requireAuth.js";
+import { uploadLimiter } from "../middleware/rateLimiters.js";
+import { upload, verifyUploadedImages } from "../middleware/upload.js";
+import { createBusinessProfile, getMyBusinessProfile, updateBusinessProfile } from "../controllers/businessProfileController.js";
 
-import { requireAuth } from '../middleware/requireAuth.js';
-import { createBusinessProfile, getMyBusinessProfile, updateBusinessProfile } from '../controllers/businessProfileController.js';
+const router = express.Router();
+router.use(requireAuth);
 
-const businessProfileRouter = express.Router();
+const fields = upload.fields([
+  { name: "logo", maxCount: 1 }, { name: "stamp", maxCount: 1 }, { name: "signature", maxCount: 1 },
+  { name: "logoName", maxCount: 1 }, { name: "stampName", maxCount: 1 }, { name: "signatureNameMeta", maxCount: 1 },
+]);
 
-businessProfileRouter.use(requireAuth);
+router.post("/", uploadLimiter, fields, verifyUploadedImages, createBusinessProfile);
+router.put("/:id", uploadLimiter, fields, verifyUploadedImages, updateBusinessProfile);
+router.get("/me", getMyBusinessProfile);
 
-
-// multer setup
-const storage = multer.diskStorage({
-    destination: (req, file, cb) =>{
-        // Vercel disk is read-only except /tmp (files there are temporary)
-        cb(null, process.env.VERCEL ? "/tmp" : path.join(process.cwd(),"uploads"));
-    },
-    filename:(req, file, cb)=>{
-       const unique = Date.now() + "-" + Math.round(Math.random() * 1e9);
-       const ext = path.extname(file.originalname);
-       cb(null, `business-${unique}${ext}`);
-    },
-    
-});
-
-const upload = multer({storage});
-
-// create
-businessProfileRouter.post(
-    "/",
-    upload.fields([
-        {name: "logoName", maxCount:1},
-        {name: "stampName", maxCount:1},
-        {name: "signatureNameMeta", maxCount:1},
-
-    ]),
-    createBusinessProfile
-);
-
-// to update
-businessProfileRouter.put(
-    "/:id",
-    upload.fields([
-        {name: "logoName", maxCount:1},
-        {name: "stampName", maxCount:1},
-        {name: "signatureNameMeta", maxCount:1},
-    ]),
-    updateBusinessProfile
-);
-
-businessProfileRouter.get("/me", getMyBusinessProfile);
-
-export default businessProfileRouter;
+export default router;

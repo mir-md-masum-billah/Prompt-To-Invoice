@@ -1,15 +1,28 @@
 import mongoose from "mongoose";
+import { env } from "./env.js";
 
-const MONGODB_URI =
-  process.env.MONGODB_URI || "mongodb://127.0.0.1:27017/PromptToInvoice";
+mongoose.set("sanitizeFilter", true);
+mongoose.set("strictQuery", true);
 
+const onVercel = Boolean(process.env.VERCEL);
+let connecting = null;
+
+// Safe to call many times: re-uses one connection (important on serverless hosts).
 export const connectDB = async () => {
-  try {
-    await mongoose.connect(MONGODB_URI);
-    console.log("DB CONNECTED");
-  } catch (err) {
-    console.error("DB connection failed:", err.message);
-    // on serverless, do not kill the function; the next request will retry
-    if (!process.env.VERCEL) process.exit(1);
+  if (mongoose.connection.readyState === 1) return mongoose.connection;
+  if (!connecting) {
+    connecting = mongoose
+      .connect(env.mongoUri, { serverSelectionTimeoutMS: 8000 })
+      .then(() => {
+        console.log("DB CONNECTED");
+        return mongoose.connection;
+      })
+      .catch((err) => {
+        connecting = null; // allow a retry on the next request
+        console.error("DB connection failed:", err.message);
+        if (!onVercel) process.exit(1); // locally: fail fast. Serverless: keep the function alive
+        throw err;
+      });
   }
+  return connecting;
 };

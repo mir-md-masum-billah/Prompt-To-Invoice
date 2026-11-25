@@ -76,6 +76,8 @@ const invoiceSchema = new mongoose.Schema({
     signatureName: { type: String, default: "" },
     signatureTitle: { type: String, default: "" },
 
+    notes: { type: String, default: "", maxlength: 2000 },
+
     taxPercent: { type: Number, default: 0 }, // US sales tax varies by state, default to 0
 
     subtotal: { type: Number, default: 0 },
@@ -84,6 +86,8 @@ const invoiceSchema = new mongoose.Schema({
 },{
     timestamps:true
 });
+
+invoiceSchema.index({ owner: 1, invoiceNumber: 1 }, { unique: true });
 
 const Invoice = mongoose.models.Invoice || mongoose.model("Invoice", invoiceSchema);
 export default Invoice;
