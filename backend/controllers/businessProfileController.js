@@ -1,6 +1,6 @@
 import BusinessProfile from "../models/businessProfileModel.js";
 
-const API_BASE = 'process.env.NEXT_PUBLIC_API_BASE';
+const API_BASE = (process.env.BACKEND_URL || 'http://localhost:4000').replace(/\/+$/, '');
 
 // file to url
 

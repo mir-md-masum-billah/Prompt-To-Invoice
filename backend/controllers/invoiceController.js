@@ -2,7 +2,7 @@ import mongoose from "mongoose";
 import Invoice from "../models/invoiceModel.js";
 import path from "path";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE;
+const API_BASE = (process.env.BACKEND_URL || "http://localhost:4000").replace(/\/+$/, "");
 
 function computeTotals(items = [], taxPercent = 0) {
   const safe = Array.isArray(items) ? items.filter(Boolean) : [];

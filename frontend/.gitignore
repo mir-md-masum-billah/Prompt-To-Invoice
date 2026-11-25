@@ -4,3 +4,8 @@ out/
 .env
 .env.local
 *.log
+
+# cloudflare / opennext
+.open-next/
+.wrangler/
+.dev.vars
