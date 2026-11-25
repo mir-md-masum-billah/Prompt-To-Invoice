@@ -13,7 +13,8 @@ businessProfileRouter.use(requireAuth);
 // multer setup
 const storage = multer.diskStorage({
     destination: (req, file, cb) =>{
-        cb(null,path.join(process.cwd(),"uploads"));
+        // Vercel disk is read-only except /tmp (files there are temporary)
+        cb(null, process.env.VERCEL ? "/tmp" : path.join(process.cwd(),"uploads"));
     },
     filename:(req, file, cb)=>{
        const unique = Date.now() + "-" + Math.round(Math.random() * 1e9);

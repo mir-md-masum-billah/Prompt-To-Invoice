@@ -13,7 +13,12 @@ const app = express();
 const port = process.env.PORT || 4000;
 
 // make sure the uploads folder exists (multer needs it)
-fs.mkdirSync(path.join(process.cwd(), "uploads"), { recursive: true });
+// (serverless hosts like Vercel have a read-only disk, so never crash here)
+try {
+  fs.mkdirSync(path.join(process.cwd(), "uploads"), { recursive: true });
+} catch (err) {
+  console.warn("Could not create uploads folder:", err.code);
+}
 
 // Allowed frontends. Set FRONTEND_URL on the host (comma separated for many).
 const allowedOrigins = [
@@ -51,6 +56,10 @@ app.get("/", (req, res) => {
   res.send("API WORKING");
 });
 
-app.listen(port, () => {
-  console.log(`Server started on port ${port}`);
-});
+export default app; // Vercel uses this
+
+if (!process.env.VERCEL) {
+  app.listen(port, () => {
+    console.log(`Server started on port ${port}`);
+  });
+}

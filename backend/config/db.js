@@ -9,6 +9,7 @@ export const connectDB = async () => {
     console.log("DB CONNECTED");
   } catch (err) {
     console.error("DB connection failed:", err.message);
-    process.exit(1);
+    // on serverless, do not kill the function; the next request will retry
+    if (!process.env.VERCEL) process.exit(1);
   }
 };
